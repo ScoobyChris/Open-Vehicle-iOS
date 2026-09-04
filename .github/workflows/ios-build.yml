@@ -181,6 +181,14 @@ jobs:
             xcrun simctl io "$device_id" screenshot "$RUNNER_TEMP/Screenshots/$scenario.png"
           done
 
+          expected_screenshots=(status car location messages settings charging charging-start-confirmation charging-stop-confirmation charging-settings climate climate-start-confirmation climate-stop-confirmation climate-schedule climate-schedule-clear energy battery-diagnostics map-options controls-lock controls-valet controls-wake controls-homelink app-settings messages-commands messages-clear)
+          for screenshot in "${expected_screenshots[@]}"; do
+            test -s "$RUNNER_TEMP/Screenshots/$screenshot.png" || {
+              echo "Missing or empty screenshot: $screenshot.png" >&2
+              exit 1
+            }
+          done
+
       - name: Upload simulator screenshot
         uses: actions/upload-artifact@v5
         with:

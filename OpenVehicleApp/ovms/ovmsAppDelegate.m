@@ -157,6 +157,13 @@
   [defaults registerDefaults:appDefaults];
   [defaults synchronize];
 
+  UIColor *navigationBackground = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1.0];
+  [[UINavigationBar appearance] setBarTintColor:navigationBackground];
+  [[UINavigationBar appearance] setTintColor:[UIColor colorWithRed:0.20 green:0.62 blue:1.0 alpha:1.0]];
+  [[UINavigationBar appearance] setTitleTextAttributes:@{NSForegroundColorAttributeName:[UIColor whiteColor]}];
+  [[UITabBar appearance] setBarTintColor:[UIColor blackColor]];
+  [[UITabBar appearance] setTintColor:[UIColor colorWithRed:0.10 green:0.58 blue:1.0 alpha:1.0]];
+
   apns_deviceid = [defaults stringForKey:@"apnsDeviceid"];
   apns_devicetoken = @"";
   #ifdef DEBUG
@@ -224,6 +231,14 @@
     // Nasty kludge for iOS <7.0 to seet tint colour to black
     [[UINavigationBar appearance] setTintColor:[UIColor blackColor]];
     [[UITabBar appearance] setTintColor:[UIColor blackColor]];
+    }
+
+  if ([self.window.rootViewController isKindOfClass:[UITabBarController class]])
+    {
+    UITabBarController *tabs = (UITabBarController *)self.window.rootViewController;
+    NSArray *titles = @[@"Home", @"Controls", @"Location", @"Messages", @"Settings"];
+    for (NSUInteger index = 0; index < MIN(titles.count, tabs.viewControllers.count); index++)
+      tabs.viewControllers[index].tabBarItem.title = titles[index];
     }
 
 #if DEBUG && TARGET_OS_SIMULATOR
