@@ -126,6 +126,8 @@
 
 @interface OVMSClimateViewController : UIViewController <ovmsUpdateDelegate>
 - (void)showClimateConfirmation:(BOOL)turnOn;
+- (void)showClimateSchedule;
+- (void)showClearScheduleConfirmation;
 @end
 
 @implementation OVMSClimateViewController
@@ -186,6 +188,10 @@
   [toggle.heightAnchor constraintEqualToConstant:54.0].active = YES;
   [toggle addTarget:self action:@selector(toggleClimate) forControlEvents:UIControlEventTouchUpInside];
   [content addArrangedSubview:toggle];
+  UIStackView *scheduleActions = [[UIStackView alloc] init]; scheduleActions.axis = UILayoutConstraintAxisHorizontal; scheduleActions.distribution = UIStackViewDistributionFillEqually; scheduleActions.spacing = 12;
+  UIButton *schedule = [UIButton buttonWithType:UIButtonTypeSystem]; schedule.backgroundColor = [UIColor colorWithRed:0.45 green:0.30 blue:0.70 alpha:1]; schedule.layer.cornerRadius = 12; [schedule setTitle:@"Climate schedule" forState:UIControlStateNormal]; [schedule setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal]; schedule.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline]; [schedule addTarget:self action:@selector(showClimateSchedule) forControlEvents:UIControlEventTouchUpInside]; [schedule.heightAnchor constraintEqualToConstant:48].active = YES; [scheduleActions addArrangedSubview:schedule];
+  UIButton *clear = [UIButton buttonWithType:UIButtonTypeSystem]; clear.backgroundColor = [UIColor colorWithRed:0.34 green:0.20 blue:0.24 alpha:1]; clear.layer.cornerRadius = 12; [clear setTitle:@"Clear schedule" forState:UIControlStateNormal]; [clear setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal]; clear.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline]; [clear addTarget:self action:@selector(showClearScheduleConfirmation) forControlEvents:UIControlEventTouchUpInside]; [clear.heightAnchor constraintEqualToConstant:48].active = YES; [scheduleActions addArrangedSubview:clear];
+  [content addArrangedSubview:scheduleActions];
   [self update];
 }
 
@@ -209,6 +215,34 @@
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"%@ climate?", verb] message:turnOn ? @"Remote climate will start using the vehicle's configured temperature." : @"Remote climate will be switched off." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:verb style:turnOn ? UIAlertActionStyleDefault : UIAlertActionStyleDestructive handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandIssue:[NSString stringWithFormat:@"26,%d", turnOn ? 1 : 0]]; }]];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+- (NSString *)climateScheduleKey { return [NSString stringWithFormat:@"climateScheduleEnabled.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"]; }
+- (void)showClimateSchedule
+{
+  BOOL enabled = [[NSUserDefaults standardUserDefaults] boolForKey:[self climateScheduleKey]];
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Climate schedule" message:@"Enter a weekday and one or more start times. Optional /minutes sets the run time, for example 07:30/15." preferredStyle:UIAlertControllerStyleAlert];
+  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Day (mon-sun)"; field.text = @"mon"; field.autocapitalizationType = UITextAutocapitalizationTypeNone; }];
+  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Times (07:30/15, 17:00/10)"; field.text = @"07:30/15"; }];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:enabled ? @"Disable" : @"Enable" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    BOOL next = !enabled; [[NSUserDefaults standardUserDefaults] setBool:next forKey:[self climateScheduleKey]];
+    [[ovmsAppDelegate myRef] commandDoCommand:next ? @"climatecontrol schedule enable" : @"climatecontrol schedule disable"];
+  }]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Save" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    NSString *day = [alert.textFields[0].text lowercaseString]; NSString *times = alert.textFields[1].text;
+    NSSet *validDays = [NSSet setWithArray:@[@"mon", @"tue", @"wed", @"thu", @"fri", @"sat", @"sun"]];
+    if ([validDays containsObject:day] && [times length]) [[ovmsAppDelegate myRef] commandDoCommand:[NSString stringWithFormat:@"climatecontrol schedule set %@ %@", day, times]];
+  }]];
+  [[ovmsAppDelegate myRef] commandDoCommand:@"climatecontrol schedule status"];
+  [[ovmsAppDelegate myRef] commandDoCommand:@"climatecontrol schedule list"];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+- (void)showClearScheduleConfirmation
+{
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clear all climate schedules?" message:@"Every scheduled climate start for this vehicle will be removed." preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Clear all" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandDoCommand:@"climatecontrol schedule clear all"]; }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
 - (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
@@ -756,6 +790,10 @@
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClimateConfirmation:YES]; });
     else if ([scenario isEqualToString:@"climate-stop-confirmation"])
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClimateConfirmation:NO]; });
+    else if ([scenario isEqualToString:@"climate-schedule"])
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClimateSchedule]; });
+    else if ([scenario isEqualToString:@"climate-schedule-clear"])
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClearScheduleConfirmation]; });
     return;
   }
   OVMSChargingViewController *charging = [self openCharging];
