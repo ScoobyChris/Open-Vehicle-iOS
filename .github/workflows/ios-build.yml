@@ -64,12 +64,14 @@ jobs:
           xcrun simctl bootstatus "$device_id" -b &
           boot_pid=$!
           for _ in {1..90}; do
-            if ! kill -0 "$boot_pid" 2>/dev/null; then
+            boot_state="$(ps -p "$boot_pid" -o state= 2>/dev/null || true)"
+            if [[ -z "$boot_state" || "$boot_state" == Z* ]]; then
               break
             fi
             sleep 2
           done
-          if kill -0 "$boot_pid" 2>/dev/null; then
+          boot_state="$(ps -p "$boot_pid" -o state= 2>/dev/null || true)"
+          if [[ -n "$boot_state" && "$boot_state" != Z* ]]; then
             kill "$boot_pid" 2>/dev/null || true
             echo "Simulator did not finish booting within three minutes" >&2
             exit 1
