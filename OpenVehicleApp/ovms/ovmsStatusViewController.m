@@ -9,7 +9,49 @@
 #import "ovmsStatusViewController.h"
 #import "JHNotificationManager.h"
 
+@interface OVMSBatteryDiagnosticsViewController : UIViewController <ovmsUpdateDelegate>
+@end
+
+@implementation OVMSBatteryDiagnosticsViewController
+- (UILabel *)line:(NSString *)text tag:(NSInteger)tag
+{
+  UILabel *label = [[UILabel alloc] init]; label.text = text; label.tag = tag; label.numberOfLines = 0;
+  label.textColor = [UIColor whiteColor]; label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+  label.backgroundColor = [UIColor colorWithRed:0.086 green:0.125 blue:0.196 alpha:1.0]; label.layer.cornerRadius = 13.0; label.layer.masksToBounds = YES;
+  label.layoutMargins = UIEdgeInsetsMake(14, 14, 14, 14);
+  [label.heightAnchor constraintGreaterThanOrEqualToConstant:56.0].active = YES;
+  return label;
+}
+- (void)viewDidLoad
+{
+  [super viewDidLoad]; self.title = @"Battery diagnostics"; self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1.0];
+  self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"Energy" style:UIBarButtonItemStylePlain target:self action:@selector(close:)];
+  UIStackView *content = [[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints = NO; content.axis = UILayoutConstraintAxisVertical; content.spacing = 10.0; [self.view addSubview:content];
+  [NSLayoutConstraint activateConstraints:@[[content.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:16], [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:16], [content.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-16]]];
+  UILabel *heading = [[UILabel alloc] init]; heading.text = @"Live pack health"; heading.textColor = [UIColor whiteColor]; heading.font = [UIFont systemFontOfSize:30 weight:UIFontWeightSemibold]; [content addArrangedSubview:heading];
+  UILabel *note = [[UILabel alloc] init]; note.text = @"Values are reported by the vehicle module; unavailable metrics are shown explicitly."; note.textColor = [UIColor colorWithWhite:0.68 alpha:1]; note.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]; note.numberOfLines = 0; [content addArrangedSubview:note];
+  for (NSInteger tag = 320; tag <= 325; tag++) [content addArrangedSubview:[self line:@"--" tag:tag]];
+  [self update];
+}
+- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [[ovmsAppDelegate myRef] registerForUpdate:self]; [self update]; }
+- (void)viewWillDisappear:(BOOL)animated { [[ovmsAppDelegate myRef] deregisterFromUpdate:self]; [super viewWillDisappear:animated]; }
+- (NSString *)available:(BOOL)available value:(NSString *)value { return available ? value : @"Unavailable"; }
+- (void)update
+{
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+  ((UILabel *)[self.view viewWithTag:320]).text = [NSString stringWithFormat:@"STATE OF HEALTH\n%@", [self available:app.car_soh > 0 value:[NSString stringWithFormat:@"%.1f%%", app.car_soh]]];
+  ((UILabel *)[self.view viewWithTag:321]).text = [NSString stringWithFormat:@"PACK\n%@  ·  %.1f A", [self available:app.car_battery_voltage > 0 value:[NSString stringWithFormat:@"%.1f V", app.car_battery_voltage]], app.car_battery_current];
+  ((UILabel *)[self.view viewWithTag:322]).text = [NSString stringWithFormat:@"CAPACITY\n%@", [self available:app.car_battery_capacity > 0 value:[NSString stringWithFormat:@"%.1f kWh", app.car_battery_capacity]]];
+  ((UILabel *)[self.view viewWithTag:323]).text = [NSString stringWithFormat:@"BATTERY TEMPERATURE\n%@", [self available:app.car_tbattery > -100 value:[NSString stringWithFormat:@"%d°", app.car_tbattery]]];
+  ((UILabel *)[self.view viewWithTag:324]).text = [NSString stringWithFormat:@"CAC\n%@", [self available:[app.car_cac length] > 0 value:[NSString stringWithFormat:@"%@ Ah", app.car_cac]]];
+  time_t age = time(0) - app.car_lastupdated;
+  ((UILabel *)[self.view viewWithTag:325]).text = app.car_lastupdated > 0 ? [NSString stringWithFormat:@"DATA AGE\n%ld seconds", (long)MAX(0, age)] : @"DATA AGE\nUnavailable";
+}
+- (void)close:(id)sender { [self.navigationController popViewControllerAnimated:YES]; }
+@end
+
 @interface OVMSEnergyViewController : UIViewController <ovmsUpdateDelegate>
+- (void)openBatteryDiagnostics;
 @end
 
 @implementation OVMSEnergyViewController
@@ -55,6 +97,9 @@
   [content addArrangedSubview:[self energyMetric:@"LAST TRIP" tag:306]];
   [content addArrangedSubview:[self energyMetric:@"ENERGY USED / REGENERATED" tag:307]];
   [content addArrangedSubview:[self energyMetric:@"12 V BATTERY" tag:308]];
+  UIButton *details = [UIButton buttonWithType:UIButtonTypeSystem]; details.backgroundColor = [UIColor colorWithRed:0.45 green:0.30 blue:0.70 alpha:1.0]; details.layer.cornerRadius = 12.0;
+  details.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline]; [details setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal]; [details setTitle:@"Battery diagnostics" forState:UIControlStateNormal];
+  [details addTarget:self action:@selector(openBatteryDiagnostics) forControlEvents:UIControlEventTouchUpInside]; [details.heightAnchor constraintEqualToConstant:52.0].active = YES; [content addArrangedSubview:details];
   [self update];
 }
 - (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [[ovmsAppDelegate myRef] registerForUpdate:self]; [self update]; }
@@ -76,6 +121,7 @@
   ((UILabel *)[self.view viewWithTag:308]).text = app.car_aux_battery_voltage > 0 ? [NSString stringWithFormat:@"%.2f V", app.car_aux_battery_voltage] : @"--";
 }
 - (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
+- (void)openBatteryDiagnostics { [self.navigationController pushViewController:[[OVMSBatteryDiagnosticsViewController alloc] init] animated:YES]; }
 @end
 
 @interface OVMSClimateViewController : UIViewController <ovmsUpdateDelegate>
@@ -696,9 +742,14 @@
 #if DEBUG && TARGET_OS_SIMULATOR
   if (self.screenshotScenarioHandled) return;
   NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
-  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"] && ![scenario isEqualToString:@"energy"]) return;
+  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"] && ![scenario isEqualToString:@"energy"] && ![scenario isEqualToString:@"battery-diagnostics"]) return;
   self.screenshotScenarioHandled = YES;
   if ([scenario isEqualToString:@"energy"]) { [self openEnergy]; return; }
+  if ([scenario isEqualToString:@"battery-diagnostics"]) {
+    OVMSEnergyViewController *energy = [self openEnergy];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [energy openBatteryDiagnostics]; });
+    return;
+  }
   if ([scenario hasPrefix:@"climate"]) {
     OVMSClimateViewController *climate = [self openClimate];
     if ([scenario isEqualToString:@"climate-start-confirmation"])
