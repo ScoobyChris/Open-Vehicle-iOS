@@ -105,8 +105,8 @@ jobs:
               "$RUNNER_TEMP/Screenshots/$screen_name.png"
           done
 
-          charging_scenarios=(charging charging-start-confirmation charging-stop-confirmation charging-settings)
-          for scenario in "${charging_scenarios[@]}"; do
+          interaction_scenarios=(charging charging-start-confirmation charging-stop-confirmation charging-settings climate climate-start-confirmation climate-stop-confirmation)
+          for scenario in "${interaction_scenarios[@]}"; do
             xcrun simctl terminate "$device_id" com.openvehicles.ovms 2>/dev/null || true
             launch_result="$(
               SIMCTL_CHILD_OVMS_SCREENSHOT_TAB=0 \

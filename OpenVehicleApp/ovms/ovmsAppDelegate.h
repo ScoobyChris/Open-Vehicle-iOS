@@ -97,6 +97,7 @@
   int car_doors1;
   int car_doors2;
   int car_doors3;
+  int car_doors5;
   int car_stale_pemtemps;
   int car_stale_ambienttemps;
   int car_lockstate;
@@ -123,6 +124,7 @@
   int car_speed;
   int car_parktime;
   int car_ambient_temp;
+  int car_cabin_temp;
   float car_tpms_fr_pressure;
   int car_tpms_fr_temp;
   float car_tpms_rr_pressure;
@@ -206,6 +208,7 @@
 @property (assign) int car_doors1;
 @property (assign) int car_doors2;
 @property (assign) int car_doors3;
+@property (assign) int car_doors5;
 @property (assign) int car_stale_pemtemps;
 @property (assign) int car_stale_ambienttemps;
 
@@ -225,6 +228,7 @@
 @property (assign) int car_speed;
 @property (assign) int car_parktime;
 @property (assign) int car_ambient_temp;
+@property (assign) int car_cabin_temp;
 @property (assign) float car_tpms_fr_pressure;
 @property (assign) int car_tpms_fr_temp;
 @property (assign) float car_tpms_rr_pressure;

@@ -9,6 +9,96 @@
 #import "ovmsStatusViewController.h"
 #import "JHNotificationManager.h"
 
+@interface OVMSClimateViewController : UIViewController <ovmsUpdateDelegate>
+- (void)showClimateConfirmation:(BOOL)turnOn;
+@end
+
+@implementation OVMSClimateViewController
+
+- (UILabel *)climateLabel:(NSString *)text size:(CGFloat)size
+{
+  UILabel *label = [[UILabel alloc] init];
+  label.text = text;
+  label.textColor = [UIColor whiteColor];
+  label.font = [UIFont systemFontOfSize:size weight:UIFontWeightSemibold];
+  label.textAlignment = NSTextAlignmentCenter;
+  label.numberOfLines = 0;
+  return label;
+}
+
+- (void)viewDidLoad
+{
+  [super viewDidLoad];
+  self.title = @"Climate";
+  self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1.0];
+  self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(close:)];
+
+  UIStackView *content = [[UIStackView alloc] init];
+  content.translatesAutoresizingMaskIntoConstraints = NO;
+  content.axis = UILayoutConstraintAxisVertical;
+  content.spacing = 18.0;
+  content.alignment = UIStackViewAlignmentFill;
+  [self.view addSubview:content];
+  [NSLayoutConstraint activateConstraints:@[
+    [content.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:24.0],
+    [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20.0],
+    [content.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20.0]
+  ]];
+
+  UILabel *state = [self climateLabel:@"Climate off" size:25.0]; state.tag = 210;
+  state.textColor = [UIColor colorWithRed:0.35 green:0.82 blue:0.98 alpha:1.0];
+  [content addArrangedSubview:state];
+  UIImageView *car = [[UIImageView alloc] initWithImage:[UIImage imageNamed:[ovmsAppDelegate myRef].sel_imagepath]];
+  car.contentMode = UIViewContentModeScaleAspectFit;
+  [car.heightAnchor constraintEqualToConstant:180.0].active = YES;
+  [content addArrangedSubview:car];
+
+  UIStackView *temperatures = [[UIStackView alloc] init];
+  temperatures.axis = UILayoutConstraintAxisHorizontal;
+  temperatures.distribution = UIStackViewDistributionFillEqually;
+  temperatures.spacing = 12.0;
+  UILabel *outside = [self climateLabel:@"--\nOUTSIDE" size:24.0]; outside.tag = 211;
+  UILabel *inside = [self climateLabel:@"--\nCABIN" size:24.0]; inside.tag = 212;
+  for (UILabel *label in @[outside, inside]) { label.backgroundColor = [UIColor colorWithRed:0.086 green:0.125 blue:0.196 alpha:1.0]; label.layer.cornerRadius = 14.0; label.layer.masksToBounds = YES; [label.heightAnchor constraintEqualToConstant:105.0].active = YES; [temperatures addArrangedSubview:label]; }
+  [content addArrangedSubview:temperatures];
+
+  UILabel *note = [self climateLabel:@"Remote climate uses the vehicle's configured target temperature." size:14.0];
+  note.textColor = [UIColor colorWithWhite:0.70 alpha:1.0];
+  [content addArrangedSubview:note];
+  UIButton *toggle = [UIButton buttonWithType:UIButtonTypeSystem];
+  toggle.tag = 213; toggle.layer.cornerRadius = 13.0; toggle.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+  [toggle setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+  [toggle.heightAnchor constraintEqualToConstant:54.0].active = YES;
+  [toggle addTarget:self action:@selector(toggleClimate) forControlEvents:UIControlEventTouchUpInside];
+  [content addArrangedSubview:toggle];
+  [self update];
+}
+
+- (BOOL)climateOn { return ([ovmsAppDelegate myRef].car_doors5 & 0x80) != 0; }
+- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [[ovmsAppDelegate myRef] registerForUpdate:self]; [self update]; }
+- (void)viewWillDisappear:(BOOL)animated { [[ovmsAppDelegate myRef] deregisterFromUpdate:self]; [super viewWillDisappear:animated]; }
+- (void)update
+{
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef]; BOOL on = [self climateOn];
+  ((UILabel *)[self.view viewWithTag:210]).text = on ? @"Climate running" : @"Climate off";
+  ((UILabel *)[self.view viewWithTag:211]).text = app.car_ambient_temp > -100 ? [NSString stringWithFormat:@"%d°\nOUTSIDE", app.car_ambient_temp] : @"--\nOUTSIDE";
+  ((UILabel *)[self.view viewWithTag:212]).text = app.car_cabin_temp > -100 ? [NSString stringWithFormat:@"%d°\nCABIN", app.car_cabin_temp] : @"--\nCABIN";
+  UIButton *toggle = (UIButton *)[self.view viewWithTag:213];
+  [toggle setTitle:on ? @"Turn climate off" : @"Turn climate on" forState:UIControlStateNormal];
+  toggle.backgroundColor = on ? [UIColor colorWithRed:0.72 green:0.20 blue:0.20 alpha:1.0] : [UIColor colorWithRed:0.10 green:0.50 blue:0.72 alpha:1.0];
+}
+- (void)toggleClimate { [self showClimateConfirmation:![self climateOn]]; }
+- (void)showClimateConfirmation:(BOOL)turnOn
+{
+  NSString *verb = turnOn ? @"Start" : @"Stop";
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"%@ climate?", verb] message:turnOn ? @"Remote climate will start using the vehicle's configured temperature." : @"Remote climate will be switched off." preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:verb style:turnOn ? UIAlertActionStyleDefault : UIAlertActionStyleDestructive handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandIssue:[NSString stringWithFormat:@"26,%d", turnOn ? 1 : 0]]; }]];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+- (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
+@end
+
 @interface OVMSChargingViewController : UIViewController <ovmsUpdateDelegate>
 - (void)showStartConfirmation;
 - (void)showStopConfirmation;
@@ -192,16 +282,36 @@
 - (void)showChargingSettings
 {
   ovmsAppDelegate *app = [ovmsAppDelegate myRef];
-  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Charging settings" message:@"Set the maximum charging current supported by your vehicle and supply." preferredStyle:UIAlertControllerStyleAlert];
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Charging limits" message:@"Set a safe supply current and optional automatic limits. Use 0 to disable an SOC or range limit." preferredStyle:UIAlertControllerStyleAlert];
   [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
     field.placeholder = @"Current limit (A)";
     field.keyboardType = UIKeyboardTypeNumberPad;
     field.text = [NSString stringWithFormat:@"%d", app.car_chargelimit];
   }];
+  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+    field.placeholder = @"SOC limit (0-100%)";
+    field.keyboardType = UIKeyboardTypeNumberPad;
+    field.text = [NSString stringWithFormat:@"%d", MAX(0, app.car_soclimit)];
+  }];
+  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+    field.placeholder = @"Range limit (0 = off)";
+    field.keyboardType = UIKeyboardTypeNumberPad;
+    field.text = [NSString stringWithFormat:@"%d", MAX(0, app.car_rangelimit)];
+  }];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:@"Save" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
     NSInteger current = [alert.textFields.firstObject.text integerValue];
-    if (current > 0) [[ovmsAppDelegate myRef] commandDoSetChargeCurrent:(int)current];
+    NSInteger soc = [alert.textFields[1].text integerValue];
+    NSInteger range = [alert.textFields[2].text integerValue];
+    if (current < 1 || current > 80 || soc < 0 || soc > 100 || range < 0) {
+      UIAlertController *error = [UIAlertController alertControllerWithTitle:@"Check charging limits" message:@"Current must be 1-80 A, SOC 0-100%, and range cannot be negative." preferredStyle:UIAlertControllerStyleAlert];
+      [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+      [self presentViewController:error animated:YES completion:nil];
+      return;
+    }
+    [[ovmsAppDelegate myRef] commandDoSetChargeCurrent:(int)current];
+    // Mirrors Android's Nissan Leaf sufficient-range/SOC command.
+    [[ovmsAppDelegate myRef] commandIssue:[NSString stringWithFormat:@"204,%ld,%ld,0", (long)range, (long)soc]];
   }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
@@ -363,6 +473,28 @@
   return charging;
 }
 
+- (OVMSClimateViewController *)openClimate
+{
+  OVMSClimateViewController *climate = [[OVMSClimateViewController alloc] init];
+  UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:climate];
+  navigation.modalPresentationStyle = UIModalPresentationFullScreen;
+  [self presentViewController:navigation animated:YES completion:nil];
+  return climate;
+}
+
+- (UIButton *)modernClimateButton
+{
+  UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+  button.backgroundColor = [UIColor colorWithRed:0.10 green:0.50 blue:0.72 alpha:1.0];
+  button.layer.cornerRadius = 12.0;
+  button.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+  [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+  [button setTitle:@"Climate" forState:UIControlStateNormal];
+  [button addTarget:self action:@selector(openClimate) forControlEvents:UIControlEventTouchUpInside];
+  [button.heightAnchor constraintEqualToConstant:52.0].active = YES;
+  return button;
+}
+
 - (void)openPrimaryTab:(UIButton *)sender
 {
   self.tabBarController.selectedIndex = sender.tag;
@@ -450,7 +582,13 @@
   self.modernParkingLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   [self.modernContentStack addArrangedSubview:[self modernCardWithTitle:@"CURRENT STATE" content:self.modernParkingLabel]];
 
-  [self.modernContentStack addArrangedSubview:[self modernChargingButton]];
+  UIStackView *vehicleActions = [[UIStackView alloc] init];
+  vehicleActions.axis = UILayoutConstraintAxisHorizontal;
+  vehicleActions.distribution = UIStackViewDistributionFillEqually;
+  vehicleActions.spacing = 12.0;
+  [vehicleActions addArrangedSubview:[self modernChargingButton]];
+  [vehicleActions addArrangedSubview:[self modernClimateButton]];
+  [self.modernContentStack addArrangedSubview:vehicleActions];
 
   UIStackView *quickActions = [[UIStackView alloc] init];
   quickActions.axis = UILayoutConstraintAxisHorizontal;
@@ -468,8 +606,16 @@
 #if DEBUG && TARGET_OS_SIMULATOR
   if (self.screenshotScenarioHandled) return;
   NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
-  if (![scenario hasPrefix:@"charging"]) return;
+  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"]) return;
   self.screenshotScenarioHandled = YES;
+  if ([scenario hasPrefix:@"climate"]) {
+    OVMSClimateViewController *climate = [self openClimate];
+    if ([scenario isEqualToString:@"climate-start-confirmation"])
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClimateConfirmation:YES]; });
+    else if ([scenario isEqualToString:@"climate-stop-confirmation"])
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClimateConfirmation:NO]; });
+    return;
+  }
   OVMSChargingViewController *charging = [self openCharging];
   if ([scenario isEqualToString:@"charging-start-confirmation"])
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [charging showStartConfirmation]; });

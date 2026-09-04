@@ -66,6 +66,7 @@
 @synthesize car_doors1;
 @synthesize car_doors2;
 @synthesize car_doors3;
+@synthesize car_doors5;
 @synthesize car_stale_pemtemps;
 @synthesize car_stale_ambienttemps;
 @synthesize car_lockstate;
@@ -84,6 +85,7 @@
 @synthesize car_speed;
 @synthesize car_parktime;
 @synthesize car_ambient_temp;
+@synthesize car_cabin_temp;
 @synthesize car_tpms_fr_pressure;
 @synthesize car_tpms_fr_temp;
 @synthesize car_tpms_rr_pressure;
@@ -591,6 +593,7 @@
   car_doors1 = 0;
   car_doors2 = 0;
   car_doors3 = 0;
+  car_doors5 = 0;
   car_stale_pemtemps = -1;
   car_stale_ambienttemps = -1;
   car_lockstate = 0;
@@ -606,6 +609,7 @@
   car_tmotor = 0;
   car_tbattery = 0;
   car_ambient_temp = -127;
+  car_cabin_temp = -127;
   car_trip = 0;
   car_odometer = 0;
   car_speed = 0;
@@ -878,6 +882,10 @@
           {
             car_aux_battery_voltage = [[lparts objectAtIndex:14] floatValue];
           }
+        if ([lparts count] >= 18)
+          car_doors5 = [[lparts objectAtIndex:17] intValue];
+        if ([lparts count] >= 21)
+          car_cabin_temp = [[lparts objectAtIndex:20] intValue];
         }
       }
       break;
