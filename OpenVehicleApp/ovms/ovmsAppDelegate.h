@@ -7,6 +7,7 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <UserNotifications/UserNotifications.h>
 #import <CFNetwork/CFSocketStream.h>
 #import "time.h"
 #import "CoreLocation/CoreLocation.h"
@@ -38,7 +39,7 @@
 - (void)commandResult:(NSArray*)result;
 @end
 
-@interface ovmsAppDelegate : UIResponder <UIApplicationDelegate>
+@interface ovmsAppDelegate : UIResponder <UIApplicationDelegate, UNUserNotificationCenterDelegate>
 {
   GCDAsyncSocket *asyncSocket;
   NSTimer *tim;

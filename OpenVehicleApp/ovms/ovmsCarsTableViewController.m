@@ -11,6 +11,52 @@
 #import "Cars.h"
 
 #import "OCMSyncHelper.h"
+#import <TargetConditionals.h>
+#import <UserNotifications/UserNotifications.h>
+
+@interface OVMSAppSettingsViewController : UIViewController
+@end
+
+@implementation OVMSAppSettingsViewController
+- (UILabel *)heading:(NSString *)text
+{
+  UILabel *label = [[UILabel alloc] init]; label.text = text; label.textColor = [UIColor colorWithWhite:0.68 alpha:1]; label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]; return label;
+}
+- (UIStackView *)settingRow:(NSString *)title detail:(NSString *)detail control:(UIView *)control
+{
+  UIStackView *text = [[UIStackView alloc] init]; text.axis = UILayoutConstraintAxisVertical; text.spacing = 3;
+  UILabel *name = [[UILabel alloc] init]; name.text = title; name.textColor = [UIColor whiteColor]; name.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody]; [text addArrangedSubview:name];
+  UILabel *desc = [[UILabel alloc] init]; desc.text = detail; desc.textColor = [UIColor colorWithWhite:0.62 alpha:1]; desc.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1]; desc.numberOfLines = 0; [text addArrangedSubview:desc];
+  UIStackView *row = [[UIStackView alloc] init]; row.axis = UILayoutConstraintAxisHorizontal; row.alignment = UIStackViewAlignmentCenter; row.spacing = 12; row.layoutMargins = UIEdgeInsetsMake(13, 14, 13, 14); row.layoutMarginsRelativeArrangement = YES; row.backgroundColor = [UIColor colorWithRed:0.086 green:0.125 blue:0.196 alpha:1]; row.layer.cornerRadius = 13; [row addArrangedSubview:text]; [row addArrangedSubview:control]; return row;
+}
+- (void)viewDidLoad
+{
+  [super viewDidLoad]; self.title = @"App settings"; self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1];
+  self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(close:)];
+  UIStackView *content = [[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints = NO; content.axis = UILayoutConstraintAxisVertical; content.spacing = 11; [self.view addSubview:content];
+  [NSLayoutConstraint activateConstraints:@[[content.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:18], [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:16], [content.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-16]]];
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  [content addArrangedSubview:[self heading:@"NOTIFICATIONS"]];
+  UIButton *notificationButton = [UIButton buttonWithType:UIButtonTypeSystem]; [notificationButton setTitle:@"Manage" forState:UIControlStateNormal]; [notificationButton addTarget:self action:@selector(openNotificationSettings) forControlEvents:UIControlEventTouchUpInside];
+  [content addArrangedSubview:[self settingRow:@"Vehicle alerts" detail:@"Charging, security and module alerts. Tapping an alert opens Messages." control:notificationButton]];
+  [content addArrangedSubview:[self heading:@"MAP"]];
+  UISwitch *mapSwitch = [[UISwitch alloc] init]; mapSwitch.on = [defaults boolForKey:@"ovmsOpenChargeMap"]; [mapSwitch addTarget:self action:@selector(mapChanged:) forControlEvents:UIControlEventValueChanged];
+  [content addArrangedSubview:[self settingRow:@"Charging stations" detail:@"Show Open Charge Map locations and vehicle range circles." control:mapSwitch]];
+  [content addArrangedSubview:[self heading:@"UNITS"]];
+  UISegmentedControl *temp = [[UISegmentedControl alloc] initWithItems:@[@"°C", @"°F"]]; temp.selectedSegmentIndex = [[defaults stringForKey:@"ovmsTemperatures"] isEqualToString:@"F"] ? 1 : 0; [temp addTarget:self action:@selector(tempChanged:) forControlEvents:UIControlEventValueChanged];
+  [content addArrangedSubview:[self settingRow:@"Temperature" detail:@"Applied throughout climate and diagnostics." control:temp]];
+  UISegmentedControl *distance = [[UISegmentedControl alloc] initWithItems:@[@"Auto", @"km", @"mi"]]; NSString *distanceValue = [defaults stringForKey:@"ovmsDistances"]; distance.selectedSegmentIndex = [distanceValue isEqualToString:@"K"] ? 1 : ([distanceValue isEqualToString:@"M"] ? 2 : 0); [distance addTarget:self action:@selector(distanceChanged:) forControlEvents:UIControlEventValueChanged];
+  [content addArrangedSubview:[self settingRow:@"Distance" detail:@"Use vehicle units automatically or override them." control:distance]];
+  [content addArrangedSubview:[self heading:@"CONNECTION"]];
+  UILabel *server = [[UILabel alloc] init]; server.text = [NSString stringWithFormat:@"%@:%@", [defaults stringForKey:@"ovmsServer"], [defaults stringForKey:@"ovmsPort"]]; server.textColor = [UIColor colorWithWhite:0.72 alpha:1]; server.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+  [content addArrangedSubview:[self settingRow:@"OVMS server" detail:@"Configured server endpoint for the legacy OVMS protocol." control:server]];
+}
+- (void)mapChanged:(UISwitch *)sender { [[NSUserDefaults standardUserDefaults] setBool:sender.on forKey:@"ovmsOpenChargeMap"]; }
+- (void)tempChanged:(UISegmentedControl *)sender { [[NSUserDefaults standardUserDefaults] setObject:sender.selectedSegmentIndex ? @"F" : @"C" forKey:@"ovmsTemperatures"]; }
+- (void)distanceChanged:(UISegmentedControl *)sender { NSArray *values = @[@"-", @"K", @"M"]; [[NSUserDefaults standardUserDefaults] setObject:values[sender.selectedSegmentIndex] forKey:@"ovmsDistances"]; }
+- (void)openNotificationSettings { [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString] options:@{} completionHandler:nil]; }
+- (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
+@end
 
 @implementation ovmsCarsTableViewController
 
@@ -46,6 +92,10 @@
  
   // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
   self.navigationItem.rightBarButtonItem = self.editButtonItem;
+  self.navigationItem.title = @"Vehicles";
+  self.navigationItem.rightBarButtonItems = @[self.editButtonItem, [[UIBarButtonItem alloc] initWithTitle:@"App" style:UIBarButtonItemStylePlain target:self action:@selector(showAppSettings)]];
+  self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+  self.tableView.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1];
   }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -98,6 +148,18 @@
 - (void)viewDidAppear:(BOOL)animated
   {
   [super viewDidAppear:animated];
+#if DEBUG && TARGET_OS_SIMULATOR
+  if (!self.screenshotScenarioHandled) {
+    NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
+    if ([scenario isEqualToString:@"app-settings"]) { self.screenshotScenarioHandled = YES; [self showAppSettings]; }
+  }
+#endif
+  }
+
+- (void)showAppSettings
+  {
+  UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:[[OVMSAppSettingsViewController alloc] init]];
+  navigation.modalPresentationStyle = UIModalPresentationFullScreen; [self presentViewController:navigation animated:YES completion:nil];
   }
 
 - (void)viewWillDisappear:(BOOL)animated
@@ -239,10 +301,12 @@
   {
     static NSString *CellIdentifier = @"CellIdentifier";
     
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:CellIdentifier];
+  UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:CellIdentifier];
     if (cell == nil) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:CellIdentifier];
+    cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:CellIdentifier];
     }
+  cell.backgroundColor = [UIColor colorWithRed:0.086 green:0.125 blue:0.196 alpha:1];
+  cell.layer.cornerRadius = 14; cell.layer.masksToBounds = YES;
 
   // Retrieve the relevant car record
   Cars *car = [_cars objectAtIndex:indexPath.row];

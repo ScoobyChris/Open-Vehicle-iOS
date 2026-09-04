@@ -204,25 +204,19 @@
       }
     }
   
-  // Let the device know we want to receive push notifications
+  // Let the device know we want to receive push notifications.
 #if TARGET_IPHONE_SIMULATOR
   // Nothing to do on the simulator, as APNS not supported by Apple
   NSLog(@"No PUSH notifications on simultor, apns_deviceid: %@", apns_deviceid);
 #else
   NSLog(@"Registering for PUSH notifications apns_deviceid: %@", apns_deviceid);
-    //-- Set Notification
-   if ([application respondsToSelector:@selector(isRegisteredForRemoteNotifications)])
-   {
-       // iOS 8 Notifications
-       [application registerUserNotificationSettings:[UIUserNotificationSettings settingsForTypes:(UIUserNotificationTypeSound | UIUserNotificationTypeAlert) categories:nil]];
-       [application registerForRemoteNotifications];
-   }
-   else
-   {
-       // iOS < 8 Notifications
-       [application registerForRemoteNotificationTypes:
-        (UIRemoteNotificationTypeAlert | UIRemoteNotificationTypeSound)];
-   }
+  UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+  center.delegate = self;
+  [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge)
+                        completionHandler:^(BOOL granted, NSError *error) {
+    if (error) NSLog(@"Notification authorization failed: %@", error);
+    if (granted) dispatch_async(dispatch_get_main_queue(), ^{ [application registerForRemoteNotifications]; });
+  }];
 #endif // TARGET_IPHONE_SIMULATOR
 
   if (SYSTEM_VERSION_LESS_THAN(@"7.0"))
@@ -289,6 +283,26 @@
     }
   
   [JHNotificationManager notificationWithMessage:message];
+  if ([message length]) [self addMessage:message incoming:YES];
+}
+
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler
+{
+  NSString *message = notification.request.content.body;
+  if ([message length]) {
+    [JHNotificationManager notificationWithMessage:message];
+    [self addMessage:message incoming:YES];
+  }
+  completionHandler(UNNotificationPresentationOptionSound | UNNotificationPresentationOptionAlert);
+}
+
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)(void))completionHandler
+{
+  NSString *message = response.notification.request.content.body;
+  if ([message length]) [self addMessage:message incoming:YES];
+  if ([self.window.rootViewController isKindOfClass:[UITabBarController class]])
+    ((UITabBarController *)self.window.rootViewController).selectedIndex = 3;
+  completionHandler();
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application
