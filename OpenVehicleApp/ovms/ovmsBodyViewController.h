@@ -47,8 +47,16 @@
 @property (strong, nonatomic) IBOutlet UIButton *m_valet_button;
 @property (strong, nonatomic) IBOutlet UIButton *m_wakeup_button;
 @property (strong, nonatomic) IBOutlet UIButton *m_homelink_button;
+@property (strong, nonatomic) UILabel *modernSecurityState;
+@property (strong, nonatomic) UILabel *modernVehicleState;
+@property (strong, nonatomic) UILabel *modernTPMSState;
+@property (assign) BOOL screenshotScenarioHandled;
 
 - (IBAction)WakeupButton:(id)sender;
 - (IBAction)HomelinkButon:(id)sender;
+- (void)showLockControl;
+- (void)showValetControl;
+- (void)showWakeConfirmation;
+- (void)showHomelinkControl;
 
 @end

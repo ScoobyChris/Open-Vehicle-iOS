@@ -138,6 +138,21 @@ jobs:
           xcrun simctl spawn "$device_id" /bin/kill -0 "$app_pid"
           xcrun simctl io "$device_id" screenshot "$RUNNER_TEMP/Screenshots/map-options.png"
 
+          control_scenarios=(controls-lock controls-valet controls-wake controls-homelink)
+          for scenario in "${control_scenarios[@]}"; do
+            xcrun simctl terminate "$device_id" com.openvehicles.ovms 2>/dev/null || true
+            launch_result="$(
+              SIMCTL_CHILD_OVMS_SCREENSHOT_TAB=1 \
+              SIMCTL_CHILD_OVMS_SCREENSHOT_SCENARIO="$scenario" \
+                xcrun simctl launch "$device_id" com.openvehicles.ovms
+            )"
+            echo "$launch_result"
+            app_pid="${launch_result##*: }"
+            sleep 4
+            xcrun simctl spawn "$device_id" /bin/kill -0 "$app_pid"
+            xcrun simctl io "$device_id" screenshot "$RUNNER_TEMP/Screenshots/$scenario.png"
+          done
+
       - name: Upload simulator screenshot
         uses: actions/upload-artifact@v5
         with:
