@@ -62,6 +62,14 @@
 @synthesize car_minutestorangelimit;
 @synthesize car_rangelimit;
 @synthesize car_soclimit;
+@synthesize car_battery_voltage;
+@synthesize car_battery_current;
+@synthesize car_battery_capacity;
+@synthesize car_soh;
+@synthesize car_power;
+@synthesize car_energyused;
+@synthesize car_energyrecd;
+@synthesize car_drivemode;
 
 @synthesize car_doors1;
 @synthesize car_doors2;
@@ -589,6 +597,14 @@
   car_minutestorangelimit = -1;
   car_rangelimit = -1;
   car_soclimit = -1;
+  car_battery_voltage = 0;
+  car_battery_current = 0;
+  car_battery_capacity = 0;
+  car_soh = 0;
+  car_power = 0;
+  car_energyused = 0;
+  car_energyrecd = 0;
+  car_drivemode = 0;
     
   car_doors1 = 0;
   car_doors2 = 0;
@@ -749,6 +765,14 @@
         {
         car_chargetype = [[lparts objectAtIndex:30] intValue];
         }
+      if ([lparts count] >= 33)
+        car_battery_voltage = [[lparts objectAtIndex:32] doubleValue];
+      if ([lparts count] >= 34)
+        car_soh = [[lparts objectAtIndex:33] floatValue];
+      if ([lparts count] >= 38)
+        car_battery_current = [[lparts objectAtIndex:36] doubleValue];
+      if ([lparts count] >= 41)
+        car_battery_capacity = [[lparts objectAtIndex:40] floatValue];
       }
       break;
     case 'T': // TIME
@@ -772,6 +796,15 @@
         car_altitude = [[lparts objectAtIndex:3] intValue];
         car_gpslock = [[lparts objectAtIndex:4] intValue];
         car_stale_gps = [[lparts objectAtIndex:5] intValue];
+        }
+      if ([lparts count] >= 12)
+        {
+        car_speed = [[lparts objectAtIndex:6] intValue];
+        car_trip = [[lparts objectAtIndex:7] intValue];
+        car_drivemode = (int)strtol([[lparts objectAtIndex:8] UTF8String], NULL, 16);
+        car_power = [[lparts objectAtIndex:9] floatValue];
+        car_energyused = [[lparts objectAtIndex:10] floatValue];
+        car_energyrecd = [[lparts objectAtIndex:11] floatValue];
         }
       if (car_ambient_weather < 0)
         {

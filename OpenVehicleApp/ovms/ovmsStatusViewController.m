@@ -9,6 +9,75 @@
 #import "ovmsStatusViewController.h"
 #import "JHNotificationManager.h"
 
+@interface OVMSEnergyViewController : UIViewController <ovmsUpdateDelegate>
+@end
+
+@implementation OVMSEnergyViewController
+
+- (UILabel *)energyLabel:(NSString *)text size:(CGFloat)size
+{
+  UILabel *label = [[UILabel alloc] init];
+  label.text = text; label.textColor = [UIColor whiteColor];
+  label.font = [UIFont systemFontOfSize:size weight:UIFontWeightSemibold];
+  label.numberOfLines = 0;
+  return label;
+}
+
+- (UIView *)energyMetric:(NSString *)title tag:(NSInteger)tag
+{
+  UIStackView *card = [[UIStackView alloc] init];
+  card.axis = UILayoutConstraintAxisVertical; card.spacing = 5.0;
+  card.layoutMargins = UIEdgeInsetsMake(13, 14, 13, 14); card.layoutMarginsRelativeArrangement = YES;
+  card.backgroundColor = [UIColor colorWithRed:0.086 green:0.125 blue:0.196 alpha:1.0]; card.layer.cornerRadius = 14.0;
+  UILabel *heading = [self energyLabel:title size:12.0]; heading.textColor = [UIColor colorWithWhite:0.68 alpha:1.0];
+  UILabel *value = [self energyLabel:@"--" size:21.0]; value.tag = tag;
+  [card addArrangedSubview:heading]; [card addArrangedSubview:value];
+  return card;
+}
+
+- (void)viewDidLoad
+{
+  [super viewDidLoad]; self.title = @"Energy";
+  self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1.0];
+  self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(close:)];
+  UIScrollView *scroll = [[UIScrollView alloc] init]; scroll.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:scroll];
+  UIStackView *content = [[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints = NO; content.axis = UILayoutConstraintAxisVertical; content.spacing = 12.0; [scroll addSubview:content];
+  [NSLayoutConstraint activateConstraints:@[
+    [scroll.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor], [scroll.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor], [scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor], [scroll.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+    [content.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:16.0], [content.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:16.0], [content.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-16.0], [content.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-20.0]
+  ]];
+  UILabel *soc = [self energyLabel:@"--" size:48.0]; soc.tag = 300; [content addArrangedSubview:soc];
+  UILabel *health = [self energyLabel:@"Battery health --" size:18.0]; health.tag = 301; health.textColor = [UIColor colorWithRed:0.34 green:0.84 blue:0.51 alpha:1.0]; [content addArrangedSubview:health];
+  UIStackView *row1 = [[UIStackView alloc] init]; row1.axis = UILayoutConstraintAxisHorizontal; row1.distribution = UIStackViewDistributionFillEqually; row1.spacing = 12.0;
+  [row1 addArrangedSubview:[self energyMetric:@"BATTERY VOLTAGE" tag:302]]; [row1 addArrangedSubview:[self energyMetric:@"BATTERY CURRENT" tag:303]]; [content addArrangedSubview:row1];
+  UIStackView *row2 = [[UIStackView alloc] init]; row2.axis = UILayoutConstraintAxisHorizontal; row2.distribution = UIStackViewDistributionFillEqually; row2.spacing = 12.0;
+  [row2 addArrangedSubview:[self energyMetric:@"POWER" tag:304]]; [row2 addArrangedSubview:[self energyMetric:@"CAPACITY" tag:305]]; [content addArrangedSubview:row2];
+  [content addArrangedSubview:[self energyMetric:@"LAST TRIP" tag:306]];
+  [content addArrangedSubview:[self energyMetric:@"ENERGY USED / REGENERATED" tag:307]];
+  [content addArrangedSubview:[self energyMetric:@"12 V BATTERY" tag:308]];
+  [self update];
+}
+- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [[ovmsAppDelegate myRef] registerForUpdate:self]; [self update]; }
+- (void)viewWillDisappear:(BOOL)animated { [[ovmsAppDelegate myRef] deregisterFromUpdate:self]; [super viewWillDisappear:animated]; }
+- (void)update
+{
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+  double trip = app.car_trip / 10.0; double net = app.car_energyused - app.car_energyrecd;
+  double consumption = trip > 0 ? net * 1000.0 / trip : 0;
+  NSString *units = [app.car_units isEqualToString:@"K"] ? @"km" : @"mi";
+  ((UILabel *)[self.view viewWithTag:300]).text = [NSString stringWithFormat:@"%d%%", app.car_soc];
+  ((UILabel *)[self.view viewWithTag:301]).text = app.car_soh > 0 ? [NSString stringWithFormat:@"Battery health %.1f%%", app.car_soh] : @"Battery health unavailable";
+  ((UILabel *)[self.view viewWithTag:302]).text = app.car_battery_voltage > 0 ? [NSString stringWithFormat:@"%.1f V", app.car_battery_voltage] : @"--";
+  ((UILabel *)[self.view viewWithTag:303]).text = [NSString stringWithFormat:@"%.1f A", app.car_battery_current];
+  ((UILabel *)[self.view viewWithTag:304]).text = [NSString stringWithFormat:@"%.2f kW", app.car_power];
+  ((UILabel *)[self.view viewWithTag:305]).text = app.car_battery_capacity > 0 ? [NSString stringWithFormat:@"%.1f kWh", app.car_battery_capacity] : ([app.car_cac length] ? [NSString stringWithFormat:@"%@ Ah", app.car_cac] : @"--");
+  ((UILabel *)[self.view viewWithTag:306]).text = [NSString stringWithFormat:@"%.1f %@  ·  %.1f Wh/%@", trip, units, consumption, units];
+  ((UILabel *)[self.view viewWithTag:307]).text = [NSString stringWithFormat:@"%.2f kWh used  ·  %.2f kWh regen", app.car_energyused, app.car_energyrecd];
+  ((UILabel *)[self.view viewWithTag:308]).text = app.car_aux_battery_voltage > 0 ? [NSString stringWithFormat:@"%.2f V", app.car_aux_battery_voltage] : @"--";
+}
+- (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
+@end
+
 @interface OVMSClimateViewController : UIViewController <ovmsUpdateDelegate>
 - (void)showClimateConfirmation:(BOOL)turnOn;
 @end
@@ -482,6 +551,15 @@
   return climate;
 }
 
+- (OVMSEnergyViewController *)openEnergy
+{
+  OVMSEnergyViewController *energy = [[OVMSEnergyViewController alloc] init];
+  UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:energy];
+  navigation.modalPresentationStyle = UIModalPresentationFullScreen;
+  [self presentViewController:navigation animated:YES completion:nil];
+  return energy;
+}
+
 - (UIButton *)modernClimateButton
 {
   UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -491,6 +569,17 @@
   [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
   [button setTitle:@"Climate" forState:UIControlStateNormal];
   [button addTarget:self action:@selector(openClimate) forControlEvents:UIControlEventTouchUpInside];
+  [button.heightAnchor constraintEqualToConstant:52.0].active = YES;
+  return button;
+}
+
+- (UIButton *)modernEnergyButton
+{
+  UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+  button.backgroundColor = [UIColor colorWithRed:0.45 green:0.30 blue:0.70 alpha:1.0];
+  button.layer.cornerRadius = 12.0; button.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+  [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal]; [button setTitle:@"Energy" forState:UIControlStateNormal];
+  [button addTarget:self action:@selector(openEnergy) forControlEvents:UIControlEventTouchUpInside];
   [button.heightAnchor constraintEqualToConstant:52.0].active = YES;
   return button;
 }
@@ -588,6 +677,7 @@
   vehicleActions.spacing = 12.0;
   [vehicleActions addArrangedSubview:[self modernChargingButton]];
   [vehicleActions addArrangedSubview:[self modernClimateButton]];
+  [vehicleActions addArrangedSubview:[self modernEnergyButton]];
   [self.modernContentStack addArrangedSubview:vehicleActions];
 
   UIStackView *quickActions = [[UIStackView alloc] init];
@@ -606,8 +696,9 @@
 #if DEBUG && TARGET_OS_SIMULATOR
   if (self.screenshotScenarioHandled) return;
   NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
-  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"]) return;
+  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"] && ![scenario isEqualToString:@"energy"]) return;
   self.screenshotScenarioHandled = YES;
+  if ([scenario isEqualToString:@"energy"]) { [self openEnergy]; return; }
   if ([scenario hasPrefix:@"climate"]) {
     OVMSClimateViewController *climate = [self openClimate];
     if ([scenario isEqualToString:@"climate-start-confirmation"])

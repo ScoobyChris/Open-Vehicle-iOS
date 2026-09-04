@@ -113,6 +113,14 @@
   int car_minutestorangelimit;
   int car_rangelimit;
   int car_soclimit;
+  double car_battery_voltage;
+  double car_battery_current;
+  float car_battery_capacity;
+  float car_soh;
+  float car_power;
+  float car_energyused;
+  float car_energyrecd;
+  int car_drivemode;
 
   float car_aux_battery_voltage;
   
@@ -204,6 +212,14 @@
 @property (assign) int car_minutestorangelimit;
 @property (assign) int car_rangelimit;        
 @property (assign) int car_soclimit;
+@property (assign) double car_battery_voltage;
+@property (assign) double car_battery_current;
+@property (assign) float car_battery_capacity;
+@property (assign) float car_soh;
+@property (assign) float car_power;
+@property (assign) float car_energyused;
+@property (assign) float car_energyrecd;
+@property (assign) int car_drivemode;
 
 @property (assign) int car_doors1;
 @property (assign) int car_doors2;
