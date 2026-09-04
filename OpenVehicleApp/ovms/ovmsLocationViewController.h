@@ -34,11 +34,15 @@
 
 @property (strong, nonatomic) OCMSyncHelper *loader;
 @property (nonatomic, strong, readonly) NSArray *locations;
+@property (strong, nonatomic) UILabel *modernLocationTitle;
+@property (strong, nonatomic) UILabel *modernLocationDetail;
+@property (assign) BOOL screenshotScenarioHandled;
 
 - (IBAction)locationSnapped:(id)sender;
 
 -(void) update;
 -(void) doupdate:(BOOL)forced;
 -(void) groupUpdate:(NSArray*)result;
+-(void) showMapOptions;
 
 @end

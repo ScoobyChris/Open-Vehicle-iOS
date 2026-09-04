@@ -8,6 +8,7 @@
 
 #import "ovmsLocationViewController.h"
 #import "OCMInformationController.h"
+#import <TargetConditionals.h>
 
 #define IDENTIFIER_CLUSTER @"cluster"
 #define IDENTIFIER_PIN @"pin"
@@ -25,7 +26,64 @@
     [super viewDidLoad];
     self.isLoadAll = NO;
     self.isUseRange = YES;
+    [self setupModernMapOverlay];
 }
+
+- (void)setupModernMapOverlay {
+    UIStackView *card = [[UIStackView alloc] init];
+    card.translatesAutoresizingMaskIntoConstraints = NO;
+    card.axis = UILayoutConstraintAxisVertical;
+    card.spacing = 3.0;
+    card.layoutMargins = UIEdgeInsetsMake(12, 14, 12, 14);
+    card.layoutMarginsRelativeArrangement = YES;
+    card.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:0.92];
+    card.layer.cornerRadius = 15.0;
+    self.modernLocationTitle = [[UILabel alloc] init];
+    self.modernLocationTitle.textColor = [UIColor whiteColor];
+    self.modernLocationTitle.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+    self.modernLocationDetail = [[UILabel alloc] init];
+    self.modernLocationDetail.textColor = [UIColor colorWithWhite:0.75 alpha:1.0];
+    self.modernLocationDetail.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    self.modernLocationDetail.numberOfLines = 2;
+    [card addArrangedSubview:self.modernLocationTitle];
+    [card addArrangedSubview:self.modernLocationDetail];
+    [self.view addSubview:card];
+
+    UIStackView *buttons = [[UIStackView alloc] init];
+    buttons.translatesAutoresizingMaskIntoConstraints = NO;
+    buttons.axis = UILayoutConstraintAxisHorizontal;
+    buttons.spacing = 10.0;
+    UIButton *recenter = [UIButton buttonWithType:UIButtonTypeSystem];
+    [recenter setTitle:@"Recenter" forState:UIControlStateNormal];
+    [recenter addTarget:self action:@selector(recenterVehicle) forControlEvents:UIControlEventTouchUpInside];
+    UIButton *options = [UIButton buttonWithType:UIButtonTypeSystem];
+    [options setTitle:@"Map options" forState:UIControlStateNormal];
+    [options addTarget:self action:@selector(showMapOptions) forControlEvents:UIControlEventTouchUpInside];
+    for (UIButton *button in @[recenter, options]) {
+        button.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:0.92];
+        button.layer.cornerRadius = 12.0;
+        button.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+        [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        [button.widthAnchor constraintGreaterThanOrEqualToConstant:105.0].active = YES;
+        [button.heightAnchor constraintEqualToConstant:44.0].active = YES;
+        [buttons addArrangedSubview:button];
+    }
+    [self.view addSubview:buttons];
+    [NSLayoutConstraint activateConstraints:@[
+        [card.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12.0],
+        [card.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:14.0],
+        [card.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-14.0],
+        [buttons.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-14.0],
+        [buttons.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-14.0]
+    ]];
+}
+
+- (void)recenterVehicle {
+    self.isAutotrack = YES;
+    if (self.m_car_location) [self.myMapView setCenterCoordinate:self.m_car_location.coordinate animated:YES];
+}
+
+- (void)showMapOptions { [self locationSnapped:nil]; }
 
 - (void)dealloc {
     [self setMyMapView:nil];
@@ -70,6 +128,18 @@
     }
 
     [[ovmsAppDelegate myRef] deregisterFromUpdate:self];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+#if DEBUG && TARGET_OS_SIMULATOR
+    if (self.screenshotScenarioHandled) return;
+    NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
+    if ([scenario isEqualToString:@"map-options"]) {
+        self.screenshotScenarioHandled = YES;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [self showMapOptions]; });
+    }
+#endif
 }
 
 - (void)settingsChanged:(NSNotification *)notification {
@@ -257,6 +327,12 @@
 -(void)doupdate:(BOOL)forced {
     // The car has reported updated information, and we may need to reflect that
     CLLocationCoordinate2D location = [ovmsAppDelegate myRef].car_location;
+    ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+    self.modernLocationTitle.text = app.car_gpslock > 0 ? @"Vehicle located" : @"Waiting for GPS";
+    self.modernLocationDetail.text = [NSString stringWithFormat:@"%.5f, %.5f  ·  %@  ·  estimated range %@",
+                                      location.latitude, location.longitude,
+                                      [app.car_speed_s length] ? app.car_speed_s : @"stationary",
+                                      [app.car_estimatedrange_s length] ? app.car_estimatedrange_s : @"--"];
 //    CLLocationCoordinate2D location = CLLocationCoordinate2DMake(22.315778,114.220304);
     
 
