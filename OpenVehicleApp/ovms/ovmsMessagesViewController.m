@@ -29,7 +29,17 @@
     self.edgesForExtendedLayout = UIRectEdgeNone;
     self.navigationItem.title = [ovmsAppDelegate myRef].sel_label;
     self.navigationController.delegate = self;
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                             target:self
+                             action:@selector(dismissMessageKeyboard:)];
     [self update];
+}
+
+- (void)dismissMessageKeyboard:(id)sender
+{
+    [self.inputPanel endInputting:YES];
+    [self.view endEditing:YES];
 }
 
 - (void)dealloc
@@ -54,6 +64,7 @@
 
 - (void)viewWillDisappear:(BOOL)animated
 {
+    [self dismissMessageKeyboard:nil];
     [super viewWillDisappear:animated];
     [[ovmsAppDelegate myRef] deregisterFromUpdate:self];
 }

@@ -9,6 +9,21 @@
 #import "ovmsStatusViewController.h"
 #import "JHNotificationManager.h"
 
+@interface ovmsStatusViewController ()
+
+@property (strong, nonatomic) UIScrollView *modernScrollView;
+@property (strong, nonatomic) UIStackView *modernContentStack;
+@property (strong, nonatomic) UIImageView *modernCarImage;
+@property (strong, nonatomic) UILabel *modernConnectionLabel;
+@property (strong, nonatomic) UILabel *modernSOCLabel;
+@property (strong, nonatomic) UIProgressView *modernSOCProgress;
+@property (strong, nonatomic) UILabel *modernChargeLabel;
+@property (strong, nonatomic) UILabel *modernIdealRangeLabel;
+@property (strong, nonatomic) UILabel *modernEstimatedRangeLabel;
+@property (strong, nonatomic) UILabel *modernParkingLabel;
+
+@end
+
 @implementation ovmsStatusViewController
 @synthesize m_car_connection_image;
 @synthesize m_car_connection_state;
@@ -54,10 +69,173 @@
   [m_charger_slider setThumbImage: [UIImage imageNamed:@"charger_button.png"] forState:UIControlStateNormal];
   [m_charger_slider setMinimumTrackImage:stetchLeftTrack forState:UIControlStateNormal];
   [m_charger_slider setMaximumTrackImage:stetchRightTrack forState:UIControlStateNormal];
+
+  [self setupModernHome];
   
   self.navigationItem.title = [ovmsAppDelegate myRef].sel_label;
 
   [self update];
+}
+
+- (UIColor *)modernBackgroundColor
+{
+  return [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1.0];
+}
+
+- (UIColor *)modernCardColor
+{
+  return [UIColor colorWithRed:0.086 green:0.125 blue:0.196 alpha:1.0];
+}
+
+- (UIView *)modernCardWithTitle:(NSString *)title content:(UIView *)content
+{
+  UIView *card = [[UIView alloc] init];
+  card.translatesAutoresizingMaskIntoConstraints = NO;
+  card.backgroundColor = [self modernCardColor];
+  card.layer.cornerRadius = 16.0;
+  card.layer.masksToBounds = YES;
+
+  UILabel *heading = [[UILabel alloc] init];
+  heading.translatesAutoresizingMaskIntoConstraints = NO;
+  heading.text = title;
+  heading.textColor = [UIColor colorWithWhite:0.72 alpha:1.0];
+  heading.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+
+  content.translatesAutoresizingMaskIntoConstraints = NO;
+  [card addSubview:heading];
+  [card addSubview:content];
+  [NSLayoutConstraint activateConstraints:@[
+    [heading.topAnchor constraintEqualToAnchor:card.topAnchor constant:16.0],
+    [heading.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:16.0],
+    [heading.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-16.0],
+    [content.topAnchor constraintEqualToAnchor:heading.bottomAnchor constant:8.0],
+    [content.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:16.0],
+    [content.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-16.0],
+    [content.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-16.0]
+  ]];
+  return card;
+}
+
+- (UILabel *)modernValueLabel
+{
+  UILabel *label = [[UILabel alloc] init];
+  label.textColor = [UIColor whiteColor];
+  label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle2];
+  label.adjustsFontForContentSizeCategory = YES;
+  label.numberOfLines = 0;
+  return label;
+}
+
+- (UIButton *)modernNavigationButton:(NSString *)title tabIndex:(NSInteger)tabIndex
+{
+  UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+  button.translatesAutoresizingMaskIntoConstraints = NO;
+  button.tag = tabIndex;
+  button.backgroundColor = [UIColor colorWithRed:0.10 green:0.35 blue:0.66 alpha:1.0];
+  button.layer.cornerRadius = 12.0;
+  button.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+  [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+  [button setTitle:title forState:UIControlStateNormal];
+  [button addTarget:self action:@selector(openPrimaryTab:) forControlEvents:UIControlEventTouchUpInside];
+  [button.heightAnchor constraintEqualToConstant:48.0].active = YES;
+  return button;
+}
+
+- (void)openPrimaryTab:(UIButton *)sender
+{
+  self.tabBarController.selectedIndex = sender.tag;
+}
+
+- (void)setupModernHome
+{
+  for (UIView *subview in [self.view.subviews copy])
+    subview.hidden = YES;
+
+  self.view.backgroundColor = [self modernBackgroundColor];
+  self.modernScrollView = [[UIScrollView alloc] init];
+  self.modernScrollView.translatesAutoresizingMaskIntoConstraints = NO;
+  self.modernScrollView.alwaysBounceVertical = YES;
+  self.modernScrollView.backgroundColor = [self modernBackgroundColor];
+  [self.view addSubview:self.modernScrollView];
+
+  self.modernContentStack = [[UIStackView alloc] init];
+  self.modernContentStack.translatesAutoresizingMaskIntoConstraints = NO;
+  self.modernContentStack.axis = UILayoutConstraintAxisVertical;
+  self.modernContentStack.spacing = 12.0;
+  [self.modernScrollView addSubview:self.modernContentStack];
+
+  [NSLayoutConstraint activateConstraints:@[
+    [self.modernScrollView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+    [self.modernScrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+    [self.modernScrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+    [self.modernScrollView.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
+    [self.modernContentStack.topAnchor constraintEqualToAnchor:self.modernScrollView.contentLayoutGuide.topAnchor constant:16.0],
+    [self.modernContentStack.leadingAnchor constraintEqualToAnchor:self.modernScrollView.frameLayoutGuide.leadingAnchor constant:16.0],
+    [self.modernContentStack.trailingAnchor constraintEqualToAnchor:self.modernScrollView.frameLayoutGuide.trailingAnchor constant:-16.0],
+    [self.modernContentStack.bottomAnchor constraintEqualToAnchor:self.modernScrollView.contentLayoutGuide.bottomAnchor constant:-20.0]
+  ]];
+
+  UIStackView *identityRow = [[UIStackView alloc] init];
+  identityRow.axis = UILayoutConstraintAxisHorizontal;
+  identityRow.alignment = UIStackViewAlignmentCenter;
+  identityRow.distribution = UIStackViewDistributionEqualSpacing;
+  UILabel *vehicleLabel = [[UILabel alloc] init];
+  vehicleLabel.text = @"VEHICLE STATUS";
+  vehicleLabel.textColor = [UIColor colorWithWhite:0.72 alpha:1.0];
+  vehicleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+  self.modernConnectionLabel = [[UILabel alloc] init];
+  self.modernConnectionLabel.textColor = [UIColor colorWithRed:0.25 green:0.85 blue:0.55 alpha:1.0];
+  self.modernConnectionLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+  [identityRow addArrangedSubview:vehicleLabel];
+  [identityRow addArrangedSubview:self.modernConnectionLabel];
+  [self.modernContentStack addArrangedSubview:identityRow];
+
+  self.modernCarImage = [[UIImageView alloc] init];
+  self.modernCarImage.contentMode = UIViewContentModeScaleAspectFit;
+  [self.modernCarImage.heightAnchor constraintEqualToConstant:190.0].active = YES;
+  [self.modernContentStack addArrangedSubview:self.modernCarImage];
+
+  UIStackView *batteryStack = [[UIStackView alloc] init];
+  batteryStack.axis = UILayoutConstraintAxisVertical;
+  batteryStack.spacing = 10.0;
+  self.modernSOCLabel = [self modernValueLabel];
+  self.modernSOCLabel.font = [UIFont systemFontOfSize:42.0 weight:UIFontWeightSemibold];
+  self.modernSOCProgress = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
+  self.modernSOCProgress.progressTintColor = [UIColor colorWithRed:0.30 green:0.82 blue:0.42 alpha:1.0];
+  self.modernSOCProgress.trackTintColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+  self.modernSOCProgress.layer.cornerRadius = 3.0;
+  self.modernSOCProgress.clipsToBounds = YES;
+  [self.modernSOCProgress.heightAnchor constraintEqualToConstant:7.0].active = YES;
+  self.modernChargeLabel = [[UILabel alloc] init];
+  self.modernChargeLabel.textColor = [UIColor colorWithWhite:0.72 alpha:1.0];
+  self.modernChargeLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+  [batteryStack addArrangedSubview:self.modernSOCLabel];
+  [batteryStack addArrangedSubview:self.modernSOCProgress];
+  [batteryStack addArrangedSubview:self.modernChargeLabel];
+  [self.modernContentStack addArrangedSubview:[self modernCardWithTitle:@"BATTERY" content:batteryStack]];
+
+  UIStackView *rangeRow = [[UIStackView alloc] init];
+  rangeRow.axis = UILayoutConstraintAxisHorizontal;
+  rangeRow.distribution = UIStackViewDistributionFillEqually;
+  rangeRow.spacing = 12.0;
+  self.modernEstimatedRangeLabel = [self modernValueLabel];
+  self.modernIdealRangeLabel = [self modernValueLabel];
+  [rangeRow addArrangedSubview:[self modernCardWithTitle:@"ESTIMATED RANGE" content:self.modernEstimatedRangeLabel]];
+  [rangeRow addArrangedSubview:[self modernCardWithTitle:@"IDEAL RANGE" content:self.modernIdealRangeLabel]];
+  [self.modernContentStack addArrangedSubview:rangeRow];
+
+  self.modernParkingLabel = [self modernValueLabel];
+  self.modernParkingLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+  [self.modernContentStack addArrangedSubview:[self modernCardWithTitle:@"CURRENT STATE" content:self.modernParkingLabel]];
+
+  UIStackView *quickActions = [[UIStackView alloc] init];
+  quickActions.axis = UILayoutConstraintAxisHorizontal;
+  quickActions.distribution = UIStackViewDistributionFillEqually;
+  quickActions.spacing = 10.0;
+  [quickActions addArrangedSubview:[self modernNavigationButton:@"Controls" tabIndex:1]];
+  [quickActions addArrangedSubview:[self modernNavigationButton:@"Location" tabIndex:2]];
+  [quickActions addArrangedSubview:[self modernNavigationButton:@"Messages" tabIndex:3]];
+  [self.modernContentStack addArrangedSubview:quickActions];
 }
 
 - (void)dealloc
@@ -311,6 +489,20 @@
   m_car_soc.text = [NSString stringWithFormat:@"%d%%",[ovmsAppDelegate myRef].car_soc];
   m_car_range_ideal.text = [ovmsAppDelegate myRef].car_idealrange_s;
   m_car_range_estimated.text = [ovmsAppDelegate myRef].car_estimatedrange_s;
+
+  self.modernCarImage.image = [UIImage imageNamed:[ovmsAppDelegate myRef].sel_imagepath];
+  self.modernSOCLabel.text = [NSString stringWithFormat:@"%d%%", [ovmsAppDelegate myRef].car_soc];
+  self.modernSOCProgress.progress = MAX(0.0, MIN(1.0, [ovmsAppDelegate myRef].car_soc / 100.0));
+  self.modernEstimatedRangeLabel.text = [ovmsAppDelegate myRef].car_estimatedrange_s;
+  self.modernIdealRangeLabel.text = [ovmsAppDelegate myRef].car_idealrange_s;
+  self.modernConnectionLabel.text = lastupdated == 0 ? @"Waiting for data" : m_car_connection_state.text;
+  self.modernConnectionLabel.textColor = m_car_connection_state.textColor;
+  NSString *chargeSummary = [[ovmsAppDelegate myRef].car_chargestate length] > 0
+    ? [[ovmsAppDelegate myRef].car_chargestate capitalizedString] : @"Not charging";
+  self.modernChargeLabel.text = chargeSummary;
+  self.modernParkingLabel.text = parktime > 0
+    ? [NSString stringWithFormat:@"Parked %@", m_car_parking_state.text]
+    : @"Vehicle state is live";
       
   CGRect bounds = m_battery_front.bounds;
   CGPoint center = m_battery_front.center;
