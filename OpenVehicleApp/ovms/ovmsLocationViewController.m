@@ -156,17 +156,34 @@
 }
 
 - (IBAction)locationSnapped:(id)sender {
-    NSArray *options = @[
-        self.isAutotrack ? NSLocalizedString(@"Turn OFF autotrack", nil) : NSLocalizedString(@"Turn ON autotrack", nil),
-        self.isFiltredChargingStation ? NSLocalizedString(@"Filtered Stations OFF", nil) : NSLocalizedString(@"Filtered Stations ON", nil),
-        self.isUseRange ? NSLocalizedString(@"Only show Stations in range OFF", nil) : NSLocalizedString(@"Only show Stations in range ON", nil)
-    ];
-    
-    [PopoverView showPopoverAtPoint:CGPointMake(10, 0)
-                             inView:self.view
-                          withTitle:NSLocalizedString(@"Options", nil)
-                    withStringArray:options
-                            delegate:self];
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Map options" message:@"Choose what is shown around the vehicle." preferredStyle:UIAlertControllerStyleActionSheet];
+    NSString *tracking = self.isAutotrack ? @"Disable automatic tracking" : @"Enable automatic tracking";
+    [sheet addAction:[UIAlertAction actionWithTitle:tracking style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        self.isAutotrack = !self.isAutotrack;
+        if (self.isAutotrack) [self recenterVehicle];
+    }]];
+    NSString *filter = self.isFiltredChargingStation ? @"Show all connector types" : @"Filter compatible connectors";
+    [sheet addAction:[UIAlertAction actionWithTitle:filter style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        if (![ovmsAppDelegate myRef].sel_connection_type_ids.length) {
+            UIAlertController *warning = [UIAlertController alertControllerWithTitle:@"Connector types needed" message:@"Configure the vehicle's connector types in Settings before enabling this filter." preferredStyle:UIAlertControllerStyleAlert];
+            [warning addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [self presentViewController:warning animated:YES completion:nil];
+        } else {
+            self.isFiltredChargingStation = !self.isFiltredChargingStation;
+            if (self.m_car_location) [self loadData:[ovmsAppDelegate myRef].car_location];
+        }
+    }]];
+    NSString *range = self.isUseRange ? @"Show stations beyond range" : @"Only show stations in range";
+    [sheet addAction:[UIAlertAction actionWithTitle:range style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        self.isUseRange = !self.isUseRange;
+        if (self.m_car_location) [self loadData:[ovmsAppDelegate myRef].car_location];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    if (sheet.popoverPresentationController) {
+        sheet.popoverPresentationController.sourceView = self.view;
+        sheet.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMaxY(self.view.bounds) - 60, 1, 1);
+    }
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
 #pragma mark - PopoverViewDelegate Methods
