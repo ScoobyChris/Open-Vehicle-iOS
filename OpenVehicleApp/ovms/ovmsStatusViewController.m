@@ -9,6 +9,171 @@
 #import "ovmsStatusViewController.h"
 #import "JHNotificationManager.h"
 
+@interface OVMSChargingViewController : UIViewController
+- (void)showStartConfirmation;
+- (void)showStopConfirmation;
+- (void)showChargingSettings;
+@end
+
+@implementation OVMSChargingViewController
+
+- (UILabel *)valueLabel:(NSString *)text size:(CGFloat)size
+{
+  UILabel *label = [[UILabel alloc] init];
+  label.text = text;
+  label.textColor = [UIColor whiteColor];
+  label.font = [UIFont systemFontOfSize:size weight:UIFontWeightSemibold];
+  label.numberOfLines = 0;
+  return label;
+}
+
+- (UIView *)metricWithTitle:(NSString *)title value:(NSString *)value
+{
+  UIStackView *stack = [[UIStackView alloc] init];
+  stack.axis = UILayoutConstraintAxisVertical;
+  stack.spacing = 5.0;
+  stack.layoutMargins = UIEdgeInsetsMake(14, 14, 14, 14);
+  stack.layoutMarginsRelativeArrangement = YES;
+  stack.backgroundColor = [UIColor colorWithRed:0.086 green:0.125 blue:0.196 alpha:1.0];
+  stack.layer.cornerRadius = 14.0;
+  UILabel *heading = [self valueLabel:title size:12.0];
+  heading.textColor = [UIColor colorWithWhite:0.70 alpha:1.0];
+  [stack addArrangedSubview:heading];
+  [stack addArrangedSubview:[self valueLabel:value size:21.0]];
+  return stack;
+}
+
+- (UIButton *)actionButton:(NSString *)title selector:(SEL)selector color:(UIColor *)color
+{
+  UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+  button.backgroundColor = color;
+  button.layer.cornerRadius = 12.0;
+  button.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+  [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+  [button setTitle:title forState:UIControlStateNormal];
+  [button addTarget:self action:selector forControlEvents:UIControlEventTouchUpInside];
+  [button.heightAnchor constraintEqualToConstant:50.0].active = YES;
+  return button;
+}
+
+- (void)viewDidLoad
+{
+  [super viewDidLoad];
+  self.title = @"Charging";
+  self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1.0];
+  self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(close:)];
+
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+  UIScrollView *scroll = [[UIScrollView alloc] init];
+  scroll.translatesAutoresizingMaskIntoConstraints = NO;
+  [self.view addSubview:scroll];
+  UIStackView *content = [[UIStackView alloc] init];
+  content.translatesAutoresizingMaskIntoConstraints = NO;
+  content.axis = UILayoutConstraintAxisVertical;
+  content.spacing = 12.0;
+  [scroll addSubview:content];
+  [NSLayoutConstraint activateConstraints:@[
+    [scroll.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+    [scroll.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+    [scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+    [scroll.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+    [content.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:16.0],
+    [content.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:16.0],
+    [content.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-16.0],
+    [content.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-20.0]
+  ]];
+
+  UILabel *soc = [self valueLabel:[NSString stringWithFormat:@"%d%%", app.car_soc] size:52.0];
+  UILabel *state = [self valueLabel:[app.car_chargestate length] ? [app.car_chargestate capitalizedString] : @"Not charging" size:18.0];
+  state.textColor = [UIColor colorWithRed:0.32 green:0.84 blue:0.48 alpha:1.0];
+  [content addArrangedSubview:soc];
+  [content addArrangedSubview:state];
+
+  UIStackView *electrical = [[UIStackView alloc] init];
+  electrical.axis = UILayoutConstraintAxisHorizontal;
+  electrical.distribution = UIStackViewDistributionFillEqually;
+  electrical.spacing = 12.0;
+  [electrical addArrangedSubview:[self metricWithTitle:@"VOLTAGE" value:[NSString stringWithFormat:@"%d V", app.car_linevoltage]]];
+  [electrical addArrangedSubview:[self metricWithTitle:@"CURRENT" value:[NSString stringWithFormat:@"%d A", app.car_chargecurrent]]];
+  [content addArrangedSubview:electrical];
+
+  double power = (app.car_linevoltage * app.car_chargecurrent) / 1000.0;
+  NSString *remaining = app.car_minutestofull > 0
+    ? [NSString stringWithFormat:@"%dh %02dm", app.car_minutestofull / 60, app.car_minutestofull % 60]
+    : @"—";
+  UIStackView *progress = [[UIStackView alloc] init];
+  progress.axis = UILayoutConstraintAxisHorizontal;
+  progress.distribution = UIStackViewDistributionFillEqually;
+  progress.spacing = 12.0;
+  [progress addArrangedSubview:[self metricWithTitle:@"POWER" value:[NSString stringWithFormat:@"%.1f kW", power]]];
+  [progress addArrangedSubview:[self metricWithTitle:@"TO FULL" value:remaining]];
+  [content addArrangedSubview:progress];
+
+  NSString *limits = [NSString stringWithFormat:@"Mode: %@\nCurrent limit: %d A\nSOC limit: %@\nRange limit: %@",
+                      [app.car_chargemode length] ? [app.car_chargemode capitalizedString] : @"Standard",
+                      app.car_chargelimit,
+                      app.car_soclimit > 0 ? [NSString stringWithFormat:@"%d%%", app.car_soclimit] : @"Not set",
+                      app.car_rangelimit > 0 ? [NSString stringWithFormat:@"%d", app.car_rangelimit] : @"Not set"];
+  [content addArrangedSubview:[self metricWithTitle:@"CHARGING LIMITS" value:limits]];
+
+  UIButton *settings = [self actionButton:@"Charging settings" selector:@selector(showChargingSettings) color:[UIColor colorWithRed:0.12 green:0.34 blue:0.62 alpha:1.0]];
+  [content addArrangedSubview:settings];
+  UIStackView *actions = [[UIStackView alloc] init];
+  actions.axis = UILayoutConstraintAxisHorizontal;
+  actions.distribution = UIStackViewDistributionFillEqually;
+  actions.spacing = 12.0;
+  [actions addArrangedSubview:[self actionButton:@"Start charging" selector:@selector(showStartConfirmation) color:[UIColor colorWithRed:0.12 green:0.55 blue:0.32 alpha:1.0]]];
+  [actions addArrangedSubview:[self actionButton:@"Stop charging" selector:@selector(showStopConfirmation) color:[UIColor colorWithRed:0.72 green:0.20 blue:0.20 alpha:1.0]]];
+  [content addArrangedSubview:actions];
+}
+
+- (void)close:(id)sender
+{
+  [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)showStartConfirmation
+{
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Start charging?" message:@"The vehicle will begin charging immediately when supported." preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Start" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    [[ovmsAppDelegate myRef] commandDoStartCharge];
+  }]];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)showStopConfirmation
+{
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Stop charging?" message:@"Charging will stop before the configured limit is reached." preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Stop" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    [[ovmsAppDelegate myRef] commandDoStopCharge];
+  }]];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)showChargingSettings
+{
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Charging settings" message:@"Set the maximum charging current supported by your vehicle and supply." preferredStyle:UIAlertControllerStyleAlert];
+  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+    field.placeholder = @"Current limit (A)";
+    field.keyboardType = UIKeyboardTypeNumberPad;
+    field.text = [NSString stringWithFormat:@"%d", app.car_chargelimit];
+  }];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Save" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    NSInteger current = [alert.textFields.firstObject.text integerValue];
+    if (current > 0) [[ovmsAppDelegate myRef] commandDoSetChargeCurrent:(int)current];
+  }]];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+
+@end
+
 @interface ovmsStatusViewController ()
 
 @property (strong, nonatomic) UIScrollView *modernScrollView;
@@ -21,6 +186,7 @@
 @property (strong, nonatomic) UILabel *modernIdealRangeLabel;
 @property (strong, nonatomic) UILabel *modernEstimatedRangeLabel;
 @property (strong, nonatomic) UILabel *modernParkingLabel;
+@property (assign, nonatomic) BOOL screenshotScenarioHandled;
 
 @end
 
@@ -141,6 +307,28 @@
   return button;
 }
 
+- (UIButton *)modernChargingButton
+{
+  UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+  button.backgroundColor = [UIColor colorWithRed:0.12 green:0.55 blue:0.32 alpha:1.0];
+  button.layer.cornerRadius = 12.0;
+  button.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+  [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+  [button setTitle:@"Charging" forState:UIControlStateNormal];
+  [button addTarget:self action:@selector(openCharging) forControlEvents:UIControlEventTouchUpInside];
+  [button.heightAnchor constraintEqualToConstant:52.0].active = YES;
+  return button;
+}
+
+- (OVMSChargingViewController *)openCharging
+{
+  OVMSChargingViewController *charging = [[OVMSChargingViewController alloc] init];
+  UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:charging];
+  navigation.modalPresentationStyle = UIModalPresentationFullScreen;
+  [self presentViewController:navigation animated:YES completion:nil];
+  return charging;
+}
+
 - (void)openPrimaryTab:(UIButton *)sender
 {
   self.tabBarController.selectedIndex = sender.tag;
@@ -228,6 +416,8 @@
   self.modernParkingLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   [self.modernContentStack addArrangedSubview:[self modernCardWithTitle:@"CURRENT STATE" content:self.modernParkingLabel]];
 
+  [self.modernContentStack addArrangedSubview:[self modernChargingButton]];
+
   UIStackView *quickActions = [[UIStackView alloc] init];
   quickActions.axis = UILayoutConstraintAxisHorizontal;
   quickActions.distribution = UIStackViewDistributionFillEqually;
@@ -236,6 +426,24 @@
   [quickActions addArrangedSubview:[self modernNavigationButton:@"Location" tabIndex:2]];
   [quickActions addArrangedSubview:[self modernNavigationButton:@"Messages" tabIndex:3]];
   [self.modernContentStack addArrangedSubview:quickActions];
+}
+
+- (void)viewDidAppear:(BOOL)animated
+{
+  [super viewDidAppear:animated];
+#if DEBUG && TARGET_OS_SIMULATOR
+  if (self.screenshotScenarioHandled) return;
+  NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
+  if (![scenario hasPrefix:@"charging"]) return;
+  self.screenshotScenarioHandled = YES;
+  OVMSChargingViewController *charging = [self openCharging];
+  if ([scenario isEqualToString:@"charging-start-confirmation"])
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [charging showStartConfirmation]; });
+  else if ([scenario isEqualToString:@"charging-stop-confirmation"])
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [charging showStopConfirmation]; });
+  else if ([scenario isEqualToString:@"charging-settings"])
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [charging showChargingSettings]; });
+#endif
 }
 
 - (void)dealloc
@@ -270,11 +478,6 @@
   [[ovmsAppDelegate myRef] registerForUpdate:self];
 
   [self update];
-}
-
-- (void)viewDidAppear:(BOOL)animated
-{
-  [super viewDidAppear:animated];
 }
 
 - (void)viewWillDisappear:(BOOL)animated
