@@ -9,7 +9,7 @@
 #import "ovmsStatusViewController.h"
 #import "JHNotificationManager.h"
 
-@interface OVMSChargingViewController : UIViewController
+@interface OVMSChargingViewController : UIViewController <ovmsUpdateDelegate>
 - (void)showStartConfirmation;
 - (void)showStopConfirmation;
 - (void)showChargingSettings;
@@ -27,7 +27,7 @@
   return label;
 }
 
-- (UIView *)metricWithTitle:(NSString *)title value:(NSString *)value
+- (UIView *)metricWithTitle:(NSString *)title value:(NSString *)value tag:(NSInteger)tag
 {
   UIStackView *stack = [[UIStackView alloc] init];
   stack.axis = UILayoutConstraintAxisVertical;
@@ -39,7 +39,9 @@
   UILabel *heading = [self valueLabel:title size:12.0];
   heading.textColor = [UIColor colorWithWhite:0.70 alpha:1.0];
   [stack addArrangedSubview:heading];
-  [stack addArrangedSubview:[self valueLabel:value size:21.0]];
+  UILabel *valueLabel = [self valueLabel:value size:21.0];
+  valueLabel.tag = tag;
+  [stack addArrangedSubview:valueLabel];
   return stack;
 }
 
@@ -87,7 +89,9 @@
   ]];
 
   UILabel *soc = [self valueLabel:[NSString stringWithFormat:@"%d%%", app.car_soc] size:52.0];
+  soc.tag = 100;
   UILabel *state = [self valueLabel:[app.car_chargestate length] ? [app.car_chargestate capitalizedString] : @"Not charging" size:18.0];
+  state.tag = 101;
   state.textColor = [UIColor colorWithRed:0.32 green:0.84 blue:0.48 alpha:1.0];
   [content addArrangedSubview:soc];
   [content addArrangedSubview:state];
@@ -96,8 +100,8 @@
   electrical.axis = UILayoutConstraintAxisHorizontal;
   electrical.distribution = UIStackViewDistributionFillEqually;
   electrical.spacing = 12.0;
-  [electrical addArrangedSubview:[self metricWithTitle:@"VOLTAGE" value:[NSString stringWithFormat:@"%d V", app.car_linevoltage]]];
-  [electrical addArrangedSubview:[self metricWithTitle:@"CURRENT" value:[NSString stringWithFormat:@"%d A", app.car_chargecurrent]]];
+  [electrical addArrangedSubview:[self metricWithTitle:@"VOLTAGE" value:[NSString stringWithFormat:@"%d V", app.car_linevoltage] tag:102]];
+  [electrical addArrangedSubview:[self metricWithTitle:@"CURRENT" value:[NSString stringWithFormat:@"%d A", app.car_chargecurrent] tag:103]];
   [content addArrangedSubview:electrical];
 
   double power = (app.car_linevoltage * app.car_chargecurrent) / 1000.0;
@@ -108,8 +112,8 @@
   progress.axis = UILayoutConstraintAxisHorizontal;
   progress.distribution = UIStackViewDistributionFillEqually;
   progress.spacing = 12.0;
-  [progress addArrangedSubview:[self metricWithTitle:@"POWER" value:[NSString stringWithFormat:@"%.1f kW", power]]];
-  [progress addArrangedSubview:[self metricWithTitle:@"TO FULL" value:remaining]];
+  [progress addArrangedSubview:[self metricWithTitle:@"POWER" value:[NSString stringWithFormat:@"%.1f kW", power] tag:104]];
+  [progress addArrangedSubview:[self metricWithTitle:@"TO FULL" value:remaining tag:105]];
   [content addArrangedSubview:progress];
 
   NSString *limits = [NSString stringWithFormat:@"Mode: %@\nCurrent limit: %d A\nSOC limit: %@\nRange limit: %@",
@@ -117,7 +121,7 @@
                       app.car_chargelimit,
                       app.car_soclimit > 0 ? [NSString stringWithFormat:@"%d%%", app.car_soclimit] : @"Not set",
                       app.car_rangelimit > 0 ? [NSString stringWithFormat:@"%d", app.car_rangelimit] : @"Not set"];
-  [content addArrangedSubview:[self metricWithTitle:@"CHARGING LIMITS" value:limits]];
+  [content addArrangedSubview:[self metricWithTitle:@"CHARGING LIMITS" value:limits tag:106]];
 
   UIButton *settings = [self actionButton:@"Charging settings" selector:@selector(showChargingSettings) color:[UIColor colorWithRed:0.12 green:0.34 blue:0.62 alpha:1.0]];
   [content addArrangedSubview:settings];
@@ -128,6 +132,36 @@
   [actions addArrangedSubview:[self actionButton:@"Start charging" selector:@selector(showStartConfirmation) color:[UIColor colorWithRed:0.12 green:0.55 blue:0.32 alpha:1.0]]];
   [actions addArrangedSubview:[self actionButton:@"Stop charging" selector:@selector(showStopConfirmation) color:[UIColor colorWithRed:0.72 green:0.20 blue:0.20 alpha:1.0]]];
   [content addArrangedSubview:actions];
+}
+
+- (void)viewWillAppear:(BOOL)animated
+{
+  [super viewWillAppear:animated];
+  [[ovmsAppDelegate myRef] registerForUpdate:self];
+  [self update];
+}
+
+- (void)viewWillDisappear:(BOOL)animated
+{
+  [[ovmsAppDelegate myRef] deregisterFromUpdate:self];
+  [super viewWillDisappear:animated];
+}
+
+- (void)update
+{
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+  ((UILabel *)[self.view viewWithTag:100]).text = [NSString stringWithFormat:@"%d%%", app.car_soc];
+  ((UILabel *)[self.view viewWithTag:101]).text = [app.car_chargestate length] ? [app.car_chargestate capitalizedString] : @"Not charging";
+  ((UILabel *)[self.view viewWithTag:102]).text = [NSString stringWithFormat:@"%d V", app.car_linevoltage];
+  ((UILabel *)[self.view viewWithTag:103]).text = [NSString stringWithFormat:@"%d A", app.car_chargecurrent];
+  ((UILabel *)[self.view viewWithTag:104]).text = [NSString stringWithFormat:@"%.1f kW", (app.car_linevoltage * app.car_chargecurrent) / 1000.0];
+  ((UILabel *)[self.view viewWithTag:105]).text = app.car_minutestofull > 0
+    ? [NSString stringWithFormat:@"%dh %02dm", app.car_minutestofull / 60, app.car_minutestofull % 60] : @"—";
+  ((UILabel *)[self.view viewWithTag:106]).text = [NSString stringWithFormat:@"Mode: %@\nCurrent limit: %d A\nSOC limit: %@\nRange limit: %@",
+    [app.car_chargemode length] ? [app.car_chargemode capitalizedString] : @"Standard",
+    app.car_chargelimit,
+    app.car_soclimit > 0 ? [NSString stringWithFormat:@"%d%%", app.car_soclimit] : @"Not set",
+    app.car_rangelimit > 0 ? [NSString stringWithFormat:@"%d", app.car_rangelimit] : @"Not set"];
 }
 
 - (void)close:(id)sender
