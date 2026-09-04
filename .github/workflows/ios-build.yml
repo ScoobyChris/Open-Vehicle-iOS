@@ -84,23 +84,31 @@ jobs:
             --wifiBars 3 \
             --cellularBars 4
           xcrun simctl install "$device_id" "$RUNNER_TEMP/Build/Open Vehicle.app"
-          launch_result="$(xcrun simctl launch "$device_id" com.openvehicles.ovms)"
-          echo "$launch_result"
-          app_pid="${launch_result##*: }"
-          sleep 5
+          screen_names=(status car location messages settings)
+          for tab_index in "${!screen_names[@]}"; do
+            screen_name="${screen_names[$tab_index]}"
+            xcrun simctl terminate "$device_id" com.openvehicles.ovms 2>/dev/null || true
+            launch_result="$(
+              SIMCTL_CHILD_OVMS_SCREENSHOT_TAB="$tab_index" \
+                xcrun simctl launch "$device_id" com.openvehicles.ovms
+            )"
+            echo "$launch_result"
+            app_pid="${launch_result##*: }"
+            sleep 3
 
-          if ! xcrun simctl spawn "$device_id" /bin/kill -0 "$app_pid"; then
-            echo "The app is not running after launch" >&2
-            exit 1
-          fi
+            if ! xcrun simctl spawn "$device_id" /bin/kill -0 "$app_pid"; then
+              echo "The app stopped while capturing the $screen_name tab" >&2
+              exit 1
+            fi
 
-          xcrun simctl io "$device_id" screenshot \
-            "$RUNNER_TEMP/Screenshots/ovms-launch.png"
+            xcrun simctl io "$device_id" screenshot \
+              "$RUNNER_TEMP/Screenshots/$screen_name.png"
+          done
 
       - name: Upload simulator screenshot
         uses: actions/upload-artifact@v5
         with:
-          name: ovms-simulator-screenshot
+          name: ovms-simulator-screenshots
           path: ${{ runner.temp }}/Screenshots/*.png
           if-no-files-found: error
           retention-days: 14

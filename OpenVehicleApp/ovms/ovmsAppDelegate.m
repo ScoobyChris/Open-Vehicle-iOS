@@ -221,6 +221,23 @@
     [[UINavigationBar appearance] setTintColor:[UIColor blackColor]];
     [[UITabBar appearance] setTintColor:[UIColor blackColor]];
     }
+
+#if DEBUG && TARGET_OS_SIMULATOR
+  // Visual regression builds can request a tab without adding test-only
+  // navigation to the production UI. SIMCTL_CHILD_ variables are stripped by
+  // simctl before being passed to the launched application.
+  NSString *screenshotTab = [[[NSProcessInfo processInfo] environment]
+                             objectForKey:@"OVMS_SCREENSHOT_TAB"];
+  if ([screenshotTab length] > 0 &&
+      [self.window.rootViewController isKindOfClass:[UITabBarController class]])
+    {
+    UITabBarController *tabController =
+      (UITabBarController *)self.window.rootViewController;
+    NSInteger tabIndex = [screenshotTab integerValue];
+    if (tabIndex >= 0 && tabIndex < [tabController.viewControllers count])
+      tabController.selectedIndex = tabIndex;
+    }
+#endif
     
   return YES;
 }
