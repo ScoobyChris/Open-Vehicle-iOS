@@ -29,11 +29,18 @@
     self.edgesForExtendedLayout = UIRectEdgeNone;
     self.navigationItem.title = [ovmsAppDelegate myRef].sel_label;
     self.navigationController.delegate = self;
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+    [self installKeyboardDismissButton];
+    [self update];
+}
+
+- (void)installKeyboardDismissButton
+{
+    UIBarButtonItem *doneButton = [[UIBarButtonItem alloc]
         initWithBarButtonSystemItem:UIBarButtonSystemItemDone
                              target:self
                              action:@selector(dismissMessageKeyboard:)];
-    [self update];
+    self.navigationItem.rightBarButtonItem = doneButton;
+    self.parentViewController.navigationItem.rightBarButtonItem = doneButton;
 }
 
 - (void)dismissMessageKeyboard:(id)sender
@@ -50,6 +57,7 @@
 {
     self.backgroundView.backgroundColor = [UIColor colorWithRed:0.069420576095581055 green:0.10595327615737915 blue:0.19171994924545288 alpha:1.0];
     [super viewWillAppear:animated];
+    [self installKeyboardDismissButton];
     self.navigationItem.title = [ovmsAppDelegate myRef].sel_label;
     
     [[ovmsAppDelegate myRef] registerForUpdate:self];
