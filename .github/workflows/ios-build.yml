@@ -98,7 +98,7 @@ jobs:
             "$RUNNER_TEMP/Screenshots/ovms-launch.png"
 
       - name: Upload simulator screenshot
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ovms-simulator-screenshot
           path: ${{ runner.temp }}/Screenshots/*.png
@@ -107,7 +107,7 @@ jobs:
 
       - name: Upload build log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: xcodebuild-log
           path: ${{ runner.temp }}/xcodebuild.log
