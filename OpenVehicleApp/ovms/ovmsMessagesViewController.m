@@ -12,6 +12,7 @@
 #import "NoChat/ovmsTextMessageCellLayout.h"
 #import "NoChat/ovmsMessageInputPanel.h"
 #import "JHNotificationManager.h"
+#import <TargetConditionals.h>
 
 @implementation ovmsMessagesViewController
 
@@ -40,7 +41,10 @@
                              target:self
                              action:@selector(dismissMessageKeyboard:)];
     self.navigationItem.rightBarButtonItem = doneButton;
-    self.parentViewController.navigationItem.rightBarButtonItem = doneButton;
+    self.navigationItem.rightBarButtonItems = @[doneButton, [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemTrash target:self action:@selector(showClearMessagesConfirmation)]];
+    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"Commands" style:UIBarButtonItemStylePlain target:self action:@selector(showCommandShortcuts)];
+    self.parentViewController.navigationItem.rightBarButtonItems = self.navigationItem.rightBarButtonItems;
+    self.parentViewController.navigationItem.leftBarButtonItem = self.navigationItem.leftBarButtonItem;
 }
 
 - (void)dismissMessageKeyboard:(id)sender
@@ -68,6 +72,37 @@
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
+#if DEBUG && TARGET_OS_SIMULATOR
+    if (!self.screenshotScenarioHandled) {
+        NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
+        if ([scenario isEqualToString:@"messages-commands"]) { self.screenshotScenarioHandled = YES; [self showCommandShortcuts]; }
+        else if ([scenario isEqualToString:@"messages-clear"]) { self.screenshotScenarioHandled = YES; [self showClearMessagesConfirmation]; }
+    }
+#endif
+}
+
+- (void)sendShortcut:(NSString *)command
+{
+    [[ovmsAppDelegate myRef] addMessage:command incoming:NO];
+    [[ovmsAppDelegate myRef] commandDoCommand:command];
+}
+
+- (void)showCommandShortcuts
+{
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Command shortcuts" message:@"Run a read-only OVMS shell command." preferredStyle:UIAlertControllerStyleActionSheet];
+    NSArray *commands = @[@[@"Vehicle status", @"stat"], @[@"Module summary", @"module summary"], @[@"Network status", @"network status"], @[@"List metrics", @"metrics list"]];
+    for (NSArray *entry in commands) [sheet addAction:[UIAlertAction actionWithTitle:entry[0] style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [self sendShortcut:entry[1]]; }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    if (sheet.popoverPresentationController) { sheet.popoverPresentationController.barButtonItem = self.navigationItem.leftBarButtonItem; }
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (void)showClearMessagesConfirmation
+{
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clear message history?" message:@"This removes the locally stored command and notification history for this vehicle." preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Clear" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef].sel_messages removeAllObjects]; [self clearMessages]; [self.collectionView reloadData]; }]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)viewWillDisappear:(BOOL)animated
