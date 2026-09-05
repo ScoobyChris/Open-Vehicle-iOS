@@ -105,7 +105,7 @@ jobs:
               "$RUNNER_TEMP/Screenshots/$screen_name.png"
           done
 
-          interaction_scenarios=(charging charging-start-confirmation charging-stop-confirmation charging-settings charging-command-pending charging-command-failed climate climate-start-confirmation climate-stop-confirmation climate-schedule climate-schedule-clear energy battery-diagnostics)
+          interaction_scenarios=(charging charging-start-confirmation charging-stop-confirmation charging-settings charging-command-pending charging-command-failed climate climate-start-confirmation climate-stop-confirmation climate-schedule climate-schedule-options climate-schedule-clear-day climate-schedule-copy climate-schedule-clear energy battery-diagnostics)
           for scenario in "${interaction_scenarios[@]}"; do
             xcrun simctl terminate "$device_id" com.openvehicles.ovms 2>/dev/null || true
             launch_result="$(
@@ -181,7 +181,7 @@ jobs:
             xcrun simctl io "$device_id" screenshot "$RUNNER_TEMP/Screenshots/$scenario.png"
           done
 
-          expected_screenshots=(status car location messages settings charging charging-start-confirmation charging-stop-confirmation charging-settings charging-command-pending charging-command-failed climate climate-start-confirmation climate-stop-confirmation climate-schedule climate-schedule-clear energy battery-diagnostics map-options controls-lock controls-valet controls-wake controls-homelink app-settings messages-commands messages-clear)
+          expected_screenshots=(status car location messages settings charging charging-start-confirmation charging-stop-confirmation charging-settings charging-command-pending charging-command-failed climate climate-start-confirmation climate-stop-confirmation climate-schedule climate-schedule-options climate-schedule-clear-day climate-schedule-copy climate-schedule-clear energy battery-diagnostics map-options controls-lock controls-valet controls-wake controls-homelink app-settings messages-commands messages-clear)
           for screenshot in "${expected_screenshots[@]}"; do
             test -s "$RUNNER_TEMP/Screenshots/$screenshot.png" || {
               echo "Missing or empty screenshot: $screenshot.png" >&2

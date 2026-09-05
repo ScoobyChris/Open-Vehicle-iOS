@@ -127,6 +127,9 @@
 @interface OVMSClimateViewController : UIViewController <ovmsUpdateDelegate>
 - (void)showClimateConfirmation:(BOOL)turnOn;
 - (void)showClimateSchedule;
+- (void)showClimateScheduleAdvanced;
+- (void)showClearDaySchedule;
+- (void)showCopySchedule;
 - (void)showClearScheduleConfirmation;
 @end
 
@@ -218,13 +221,29 @@
   [self presentViewController:alert animated:YES completion:nil];
 }
 - (NSString *)climateScheduleKey { return [NSString stringWithFormat:@"climateScheduleEnabled.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"]; }
+- (NSArray *)scheduleDays { return @[@"mon", @"tue", @"wed", @"thu", @"fri", @"sat", @"sun"]; }
+- (BOOL)isValidScheduleDay:(NSString *)day { return [[self scheduleDays] containsObject:[day lowercaseString]]; }
+- (BOOL)areValidScheduleDays:(NSString *)days
+{
+  NSArray *parts = [[days lowercaseString] componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@", "]];
+  BOOL found = NO;
+  for (NSString *day in parts) if (day.length) { found = YES; if (![self isValidScheduleDay:day]) return NO; }
+  return found;
+}
+- (void)showScheduleValidationError:(NSString *)message
+{
+  UIAlertController *error = [UIAlertController alertControllerWithTitle:@"Check schedule" message:message preferredStyle:UIAlertControllerStyleAlert];
+  [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+  [self presentViewController:error animated:YES completion:nil];
+}
 - (void)showClimateSchedule
 {
   BOOL enabled = [[NSUserDefaults standardUserDefaults] boolForKey:[self climateScheduleKey]];
-  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Climate schedule" message:@"Enter a weekday and one or more start times. Optional /minutes sets the run time, for example 07:30/15." preferredStyle:UIAlertControllerStyleAlert];
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Climate schedule" message:@"Times use the vehicle module's local clock. Add /minutes for run time, for example 07:30/15." preferredStyle:UIAlertControllerStyleAlert];
   [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Day (mon-sun)"; field.text = @"mon"; field.autocapitalizationType = UITextAutocapitalizationTypeNone; }];
   [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Times (07:30/15, 17:00/10)"; field.text = @"07:30/15"; }];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"More…" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [self showClimateScheduleAdvanced]; }]];
   [alert addAction:[UIAlertAction actionWithTitle:enabled ? @"Disable" : @"Enable" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
     BOOL next = !enabled; [[NSUserDefaults standardUserDefaults] setBool:next forKey:[self climateScheduleKey]];
     [[ovmsAppDelegate myRef] commandDoCommand:next ? @"climatecontrol schedule enable" : @"climatecontrol schedule disable"];
@@ -232,10 +251,49 @@
   [alert addAction:[UIAlertAction actionWithTitle:@"Save" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
     NSString *day = [alert.textFields[0].text lowercaseString]; NSString *times = alert.textFields[1].text;
     NSSet *validDays = [NSSet setWithArray:@[@"mon", @"tue", @"wed", @"thu", @"fri", @"sat", @"sun"]];
-    if ([validDays containsObject:day] && [times length]) [[ovmsAppDelegate myRef] commandDoCommand:[NSString stringWithFormat:@"climatecontrol schedule set %@ %@", day, times]];
+    if (![validDays containsObject:day]) { [self showScheduleValidationError:@"Use a day from mon through sun."]; return; }
+    if (!times.length) { [self showScheduleValidationError:@"Enter at least one start time."]; return; }
+    [[ovmsAppDelegate myRef] commandDoCommand:[NSString stringWithFormat:@"climatecontrol schedule set %@ %@", day, times]];
   }]];
   [[ovmsAppDelegate myRef] commandDoCommand:@"climatecontrol schedule status"];
   [[ovmsAppDelegate myRef] commandDoCommand:@"climatecontrol schedule list"];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+- (void)showClimateScheduleAdvanced
+{
+  UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Schedule options" message:@"Manage schedules stored by the vehicle module." preferredStyle:UIAlertControllerStyleActionSheet];
+  [sheet addAction:[UIAlertAction actionWithTitle:@"List schedules" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandDoCommand:@"climatecontrol schedule list"]; }]];
+  [sheet addAction:[UIAlertAction actionWithTitle:@"Clear a day" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [self showClearDaySchedule]; }]];
+  [sheet addAction:[UIAlertAction actionWithTitle:@"Copy a day" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [self showCopySchedule]; }]];
+  [sheet addAction:[UIAlertAction actionWithTitle:@"Clear all" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) { [self showClearScheduleConfirmation]; }]];
+  [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  UIPopoverPresentationController *popover = sheet.popoverPresentationController;
+  if (popover) { popover.sourceView = self.view; popover.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 1, 1); popover.permittedArrowDirections = 0; }
+  [self presentViewController:sheet animated:YES completion:nil];
+}
+- (void)showClearDaySchedule
+{
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clear one day" message:@"Enter the vehicle-local weekday to remove." preferredStyle:UIAlertControllerStyleAlert];
+  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Day (mon-sun)"; field.text = @"mon"; field.autocapitalizationType = UITextAutocapitalizationTypeNone; }];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Clear" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    NSString *day = [alert.textFields.firstObject.text lowercaseString];
+    if (![self isValidScheduleDay:day]) { [self showScheduleValidationError:@"Use a day from mon through sun."]; return; }
+    [[ovmsAppDelegate myRef] commandDoCommand:[NSString stringWithFormat:@"climatecontrol schedule clear %@", day]];
+  }]];
+  [self presentViewController:alert animated:YES completion:nil];
+}
+- (void)showCopySchedule
+{
+  UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Copy schedule" message:@"Copy one day's times to one or more target days." preferredStyle:UIAlertControllerStyleAlert];
+  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Source day (mon-sun)"; field.text = @"mon"; field.autocapitalizationType = UITextAutocapitalizationTypeNone; }];
+  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Target days (tue,wed,thu)"; field.text = @"tue,wed,thu,fri"; field.autocapitalizationType = UITextAutocapitalizationTypeNone; }];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Copy" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    NSString *source = [alert.textFields[0].text lowercaseString]; NSString *targets = [alert.textFields[1].text lowercaseString];
+    if (![self isValidScheduleDay:source] || ![self areValidScheduleDays:targets]) { [self showScheduleValidationError:@"Use mon-sun abbreviations and separate target days with commas."]; return; }
+    [[ovmsAppDelegate myRef] commandDoCommand:[NSString stringWithFormat:@"climatecontrol schedule copy %@ %@", source, targets]];
+  }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
 - (void)showClearScheduleConfirmation
@@ -867,6 +925,12 @@
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClimateConfirmation:NO]; });
     else if ([scenario isEqualToString:@"climate-schedule"])
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClimateSchedule]; });
+    else if ([scenario isEqualToString:@"climate-schedule-options"])
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClimateScheduleAdvanced]; });
+    else if ([scenario isEqualToString:@"climate-schedule-clear-day"])
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClearDaySchedule]; });
+    else if ([scenario isEqualToString:@"climate-schedule-copy"])
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showCopySchedule]; });
     else if ([scenario isEqualToString:@"climate-schedule-clear"])
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [climate showClearScheduleConfirmation]; });
     return;
