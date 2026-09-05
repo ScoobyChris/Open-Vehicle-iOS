@@ -8,8 +8,45 @@
 
 #import "ovmsStatusViewController.h"
 #import "JHNotificationManager.h"
+#import <float.h>
+#import <math.h>
 
-@interface OVMSBatteryDiagnosticsViewController : UIViewController <ovmsUpdateDelegate>
+@interface OVMSSparklineView : UIView
+@property (copy, nonatomic) NSArray *series;
+@property (copy, nonatomic) NSArray *colors;
+@end
+
+@implementation OVMSSparklineView
+@synthesize series = _series;
+@synthesize colors = _colors;
+- (void)setSeries:(NSArray *)series { _series = [series copy]; [self setNeedsDisplay]; }
+- (void)drawRect:(CGRect)rect
+{
+  CGContextRef context = UIGraphicsGetCurrentContext();
+  [[UIColor colorWithRed:0.086 green:0.125 blue:0.196 alpha:1] setFill]; UIRectFill(rect);
+  CGContextSetLineWidth(context, 0.5); [[UIColor colorWithWhite:1 alpha:0.10] setStroke];
+  for (NSInteger i=1; i<4; i++) { CGFloat y=CGRectGetHeight(rect)*i/4.0; CGContextMoveToPoint(context, 0, y); CGContextAddLineToPoint(context, CGRectGetWidth(rect), y); } CGContextStrokePath(context);
+  [self.series enumerateObjectsUsingBlock:^(NSArray *values, NSUInteger seriesIndex, BOOL *stop) {
+    if (values.count < 2) return;
+    __block double low=DBL_MAX, high=-DBL_MAX; for (NSNumber *number in values) { low=MIN(low,number.doubleValue); high=MAX(high,number.doubleValue); } if (fabs(high-low)<0.0001) { low-=1; high+=1; }
+    UIColor *color = seriesIndex < self.colors.count ? self.colors[seriesIndex] : [UIColor colorWithRed:.3 green:.82 blue:.42 alpha:1];
+    [color setStroke]; CGContextSetLineWidth(context, 2.0); CGContextBeginPath(context);
+    [values enumerateObjectsUsingBlock:^(NSNumber *number, NSUInteger index, BOOL *innerStop) {
+      CGFloat x = 8 + (CGRectGetWidth(rect)-16) * index / MAX((NSInteger)values.count-1, 1);
+      CGFloat y = 8 + (CGRectGetHeight(rect)-16) * (high-number.doubleValue)/(high-low);
+      if (index==0) CGContextMoveToPoint(context,x,y); else CGContextAddLineToPoint(context,x,y);
+    }]; CGContextStrokePath(context);
+  }];
+}
+@end
+
+@interface OVMSBatteryDiagnosticsViewController : UIViewController <ovmsUpdateDelegate, ovmsCommandDelegate>
+@property (strong, nonatomic) NSMutableArray *packRecords;
+@property (strong, nonatomic) NSMutableDictionary *latestCells;
+@property (strong, nonatomic) NSMutableArray *auxRecords;
+@property (copy, nonatomic) NSString *loadPhase;
+@property (strong, nonatomic) NSTimer *loadTimeout;
+- (void)loadScreenshotPreview:(BOOL)loading;
 @end
 
 @implementation OVMSBatteryDiagnosticsViewController
@@ -26,15 +63,30 @@
 {
   [super viewDidLoad]; self.title = @"Battery diagnostics"; self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1.0];
   self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"Energy" style:UIBarButtonItemStylePlain target:self action:@selector(close:)];
-  UIStackView *content = [[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints = NO; content.axis = UILayoutConstraintAxisVertical; content.spacing = 10.0; [self.view addSubview:content];
-  [NSLayoutConstraint activateConstraints:@[[content.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:16], [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:16], [content.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-16]]];
+  self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(refreshHistory)];
+  self.packRecords = [NSMutableArray array]; self.latestCells = [NSMutableDictionary dictionary]; self.auxRecords = [NSMutableArray array];
+  UIScrollView *scroll = [[UIScrollView alloc] init]; scroll.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:scroll];
+  UIStackView *content = [[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints = NO; content.axis = UILayoutConstraintAxisVertical; content.spacing = 10.0; [scroll addSubview:content];
+  [NSLayoutConstraint activateConstraints:@[[scroll.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor], [scroll.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor], [scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor], [scroll.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor], [content.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:16], [content.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:16], [content.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-16], [content.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-20]]];
   UILabel *heading = [[UILabel alloc] init]; heading.text = @"Live pack health"; heading.textColor = [UIColor whiteColor]; heading.font = [UIFont systemFontOfSize:30 weight:UIFontWeightSemibold]; [content addArrangedSubview:heading];
   UILabel *note = [[UILabel alloc] init]; note.text = @"Values are reported by the vehicle module; unavailable metrics are shown explicitly."; note.textColor = [UIColor colorWithWhite:0.68 alpha:1]; note.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]; note.numberOfLines = 0; [content addArrangedSubview:note];
   for (NSInteger tag = 320; tag <= 325; tag++) [content addArrangedSubview:[self line:@"--" tag:tag]];
+  UILabel *load = [self line:@"HISTORY\nTap refresh to retrieve pack, cell and 12 V records" tag:326]; load.accessibilityIdentifier = @"battery-history-status"; [content addArrangedSubview:load];
+  [content addArrangedSubview:[self line:@"CELL STATUS\nNo cell data loaded" tag:327]];
+  OVMSSparklineView *cells = [[OVMSSparklineView alloc] init]; cells.tag=330; cells.layer.cornerRadius=13; cells.layer.masksToBounds=YES; cells.accessibilityLabel=@"Cell voltage and temperature chart"; [cells.heightAnchor constraintEqualToConstant:170].active=YES; [content addArrangedSubview:cells];
+  [content addArrangedSubview:[self line:@"PACK HISTORY\nNo history loaded" tag:328]];
+  OVMSSparklineView *pack = [[OVMSSparklineView alloc] init]; pack.tag=331; pack.layer.cornerRadius=13; pack.layer.masksToBounds=YES; pack.accessibilityLabel=@"Pack voltage and temperature history chart"; [pack.heightAnchor constraintEqualToConstant:170].active=YES; [content addArrangedSubview:pack];
+  [content addArrangedSubview:[self line:@"12 V HISTORY\nNo history loaded" tag:329]];
+  OVMSSparklineView *aux = [[OVMSSparklineView alloc] init]; aux.tag=332; aux.layer.cornerRadius=13; aux.layer.masksToBounds=YES; aux.accessibilityLabel=@"12 volt battery history chart"; [aux.heightAnchor constraintEqualToConstant:150].active=YES; [content addArrangedSubview:aux];
+  [self restoreHistory];
+#if DEBUG && TARGET_OS_SIMULATOR
+  NSString *scenario=[[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
+  if ([scenario isEqualToString:@"battery-diagnostics"] || [scenario isEqualToString:@"battery-history-loading"]) [self loadScreenshotPreview:[scenario isEqualToString:@"battery-history-loading"]];
+#endif
   [self update];
 }
 - (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [[ovmsAppDelegate myRef] registerForUpdate:self]; [self update]; }
-- (void)viewWillDisappear:(BOOL)animated { [[ovmsAppDelegate myRef] deregisterFromUpdate:self]; [super viewWillDisappear:animated]; }
+- (void)viewWillDisappear:(BOOL)animated { [self.loadTimeout invalidate]; if (self.loadPhase) [[ovmsAppDelegate myRef] commandCancel]; [[ovmsAppDelegate myRef] deregisterFromUpdate:self]; [super viewWillDisappear:animated]; }
 - (NSString *)available:(BOOL)available value:(NSString *)value { return available ? value : @"Unavailable"; }
 - (void)update
 {
@@ -46,6 +98,72 @@
   ((UILabel *)[self.view viewWithTag:324]).text = [NSString stringWithFormat:@"CAC\n%@", [self available:[app.car_cac length] > 0 value:[NSString stringWithFormat:@"%@ Ah", app.car_cac]]];
   time_t age = time(0) - app.car_lastupdated;
   ((UILabel *)[self.view viewWithTag:325]).text = app.car_lastupdated > 0 ? [NSString stringWithFormat:@"DATA AGE\n%ld seconds", (long)MAX(0, age)] : @"DATA AGE\nUnavailable";
+}
+- (NSString *)historyKey:(NSString *)kind { return [NSString stringWithFormat:@"batteryHistory.%@.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle", kind]; }
+- (void)restoreHistory
+{
+  NSUserDefaults *defaults=[NSUserDefaults standardUserDefaults]; NSArray *pack=[defaults arrayForKey:[self historyKey:@"pack"]]; NSArray *aux=[defaults arrayForKey:[self historyKey:@"aux"]]; NSDictionary *cells=[defaults dictionaryForKey:[self historyKey:@"cells"]];
+  if (pack) [self.packRecords addObjectsFromArray:pack]; if (aux) [self.auxRecords addObjectsFromArray:aux]; if (cells) [self.latestCells addEntriesFromDictionary:cells]; [self updateHistoryViews];
+}
+- (void)saveHistory
+{
+  NSUserDefaults *defaults=[NSUserDefaults standardUserDefaults]; [defaults setObject:self.packRecords forKey:[self historyKey:@"pack"]]; [defaults setObject:self.auxRecords forKey:[self historyKey:@"aux"]]; [defaults setObject:self.latestCells forKey:[self historyKey:@"cells"]];
+}
+- (void)refreshHistory
+{
+  ovmsAppDelegate *app=[ovmsAppDelegate myRef]; if (![app commandIsFree]) { ((UILabel *)[self.view viewWithTag:326]).text=@"HISTORY\nAnother vehicle command is pending"; return; }
+  [self.packRecords removeAllObjects]; [self.latestCells removeAllObjects]; [self.auxRecords removeAllObjects]; [self beginHistoryPhase:@"pack" command:@"32,RT-BAT-P"];
+}
+- (void)beginHistoryPhase:(NSString *)phase command:(NSString *)command
+{
+  self.loadPhase=phase; ((UILabel *)[self.view viewWithTag:326]).text=[NSString stringWithFormat:@"HISTORY\nLoading %@ records…", [phase isEqualToString:@"aux"] ? @"12 V" : phase]; self.navigationItem.rightBarButtonItem.enabled=NO;
+  [[ovmsAppDelegate myRef] commandRegister:command callback:self]; [self.loadTimeout invalidate]; self.loadTimeout=[NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(historyTimedOut:) userInfo:nil repeats:NO];
+}
+- (void)historyTimedOut:(NSTimer *)timer
+{
+  [[ovmsAppDelegate myRef] commandCancel]; self.loadPhase=nil; self.loadTimeout=nil; self.navigationItem.rightBarButtonItem.enabled=YES; ((UILabel *)[self.view viewWithTag:326]).text=@"HISTORY\nRequest timed out; existing vehicle data was not replaced";
+}
+- (void)advanceHistoryPhase
+{
+  [self.loadTimeout invalidate]; self.loadTimeout=nil; [[ovmsAppDelegate myRef] commandCancel];
+  if ([self.loadPhase isEqualToString:@"pack"]) { [self beginHistoryPhase:@"cells" command:@"32,RT-BAT-C"]; return; }
+  if ([self.loadPhase isEqualToString:@"cells"]) { [self beginHistoryPhase:@"aux" command:@"32,D"]; return; }
+  self.loadPhase=nil; self.navigationItem.rightBarButtonItem.enabled=YES; [self saveHistory]; [self updateHistoryViews]; ((UILabel *)[self.view viewWithTag:326]).text=[NSString stringWithFormat:@"HISTORY\nLoaded %lu pack, %lu cell and %lu 12 V records",(unsigned long)self.packRecords.count,(unsigned long)self.latestCells.count,(unsigned long)self.auxRecords.count];
+}
+- (void)commandResult:(NSArray *)result
+{
+  if (!self.loadPhase || result.count<3) return; NSInteger code=[result[1] integerValue];
+  if ([result[2] isEqual:@"No historical data available"]) { [self advanceHistoryPhase]; return; }
+  if (code!=0) { [self.loadTimeout invalidate]; [[ovmsAppDelegate myRef] commandCancel]; NSString *phase=self.loadPhase; self.loadPhase=nil; self.navigationItem.rightBarButtonItem.enabled=YES; ((UILabel *)[self.view viewWithTag:326]).text=[NSString stringWithFormat:@"HISTORY\n%@ data unavailable: %@",phase,result.count>2?result[2]:@"vehicle rejected request"]; return; }
+  if (result.count<6) return; NSString *type=result[4];
+  @try {
+    if ([type isEqualToString:@"RT-BAT-P"] && result.count>21) [self.packRecords addObject:@{@"time":result[5],@"voltAlert":@([result[7] integerValue]),@"tempAlert":@([result[8] integerValue]),@"soc":@([result[9] doubleValue]/100.0),@"volt":@([result[12] doubleValue]/10.0),@"voltMin":@([result[13] doubleValue]/10.0),@"temp":@([result[15] doubleValue]),@"voltDev":@([result[18] doubleValue]/100.0),@"tempDev":@([result[19] doubleValue])}];
+    else if ([type isEqualToString:@"RT-BAT-C"] && result.count>16) self.latestCells[result[6]]=@{@"voltAlert":@([result[7] integerValue]),@"tempAlert":@([result[8] integerValue]),@"volt":@([result[9] doubleValue]/1000.0),@"voltMin":@([result[10] doubleValue]/1000.0),@"voltMax":@([result[11] doubleValue]/1000.0),@"voltDev":@([result[12] doubleValue]/1000.0),@"temp":@([result[13] doubleValue]),@"tempMin":@([result[14] doubleValue]),@"tempMax":@([result[15] doubleValue]),@"tempDev":@([result[16] doubleValue])};
+    else if ([type isEqualToString:@"D"] && result.count>21) [self.auxRecords addObject:@{@"time":result[5],@"volt":@([result[21] doubleValue]),@"voltRef":@(result.count>23?[result[23] doubleValue]:0),@"current":@(result.count>26?[result[26] doubleValue]:0),@"ambient":@([result[17] doubleValue]),@"charger":@(result.count>25?[result[25] doubleValue]:0)}];
+  } @catch (NSException *exception) { }
+  if ([result[2] integerValue]==[result[3] integerValue]) [self advanceHistoryPhase];
+}
+- (void)updateHistoryViews
+{
+  NSArray *cellKeys=[[self.latestCells allKeys] sortedArrayUsingComparator:^NSComparisonResult(NSString *a,NSString *b){ return [a integerValue]<[b integerValue]?NSOrderedAscending:([a integerValue]>[b integerValue]?NSOrderedDescending:NSOrderedSame); }]; NSMutableArray *cellVolts=[NSMutableArray array],*cellTemps=[NSMutableArray array]; NSInteger alerts=0;
+  for (NSString *key in cellKeys) { NSDictionary *cell=self.latestCells[key]; [cellVolts addObject:cell[@"volt"]]; [cellTemps addObject:cell[@"temp"]]; if ([cell[@"voltAlert"] integerValue]||[cell[@"tempAlert"] integerValue]) alerts++; }
+  double minV=DBL_MAX,maxV=-DBL_MAX,minT=DBL_MAX,maxT=-DBL_MAX; for(NSNumber*n in cellVolts){minV=MIN(minV,n.doubleValue);maxV=MAX(maxV,n.doubleValue);} for(NSNumber*n in cellTemps){minT=MIN(minT,n.doubleValue);maxT=MAX(maxT,n.doubleValue);}
+  ((UILabel *)[self.view viewWithTag:327]).text=cellKeys.count?[NSString stringWithFormat:@"CELL STATUS\n%lu cells  ·  %.3f–%.3f V (Δ %.0f mV)\n%.0f–%.0f°  ·  %ld alert%@  ·  green V / orange °",(unsigned long)cellKeys.count,minV,maxV,(maxV-minV)*1000,minT,maxT,(long)alerts,alerts==1?@"":@"s"]:@"CELL STATUS\nNo cell data loaded";
+  OVMSSparklineView *cellChart=(OVMSSparklineView *)[self.view viewWithTag:330]; cellChart.series=@[cellVolts,cellTemps]; cellChart.colors=@[[UIColor colorWithRed:.30 green:.82 blue:.42 alpha:1],[UIColor colorWithRed:.96 green:.56 blue:.22 alpha:1]];
+  NSMutableArray *packV=[NSMutableArray array],*packT=[NSMutableArray array]; for(NSDictionary*r in self.packRecords){[packV addObject:r[@"volt"]];[packT addObject:r[@"temp"]];} OVMSSparklineView *packChart=(OVMSSparklineView *)[self.view viewWithTag:331]; packChart.series=@[packV,packT]; packChart.colors=cellChart.colors;
+  NSDictionary *lastPack=self.packRecords.lastObject; ((UILabel *)[self.view viewWithTag:328]).text=lastPack?[NSString stringWithFormat:@"PACK HISTORY\n%lu samples  ·  latest %.1f V / %.0f°\nMax deviations %.0f mV / %.1f°",(unsigned long)self.packRecords.count,[lastPack[@"volt"] doubleValue],[lastPack[@"temp"] doubleValue],[lastPack[@"voltDev"] doubleValue]*1000,[lastPack[@"tempDev"] doubleValue]]:@"PACK HISTORY\nNo history loaded";
+  NSMutableArray *auxV=[NSMutableArray array],*auxRef=[NSMutableArray array]; for(NSDictionary*r in self.auxRecords){[auxV addObject:r[@"volt"]];[auxRef addObject:r[@"voltRef"]];} OVMSSparklineView *auxChart=(OVMSSparklineView *)[self.view viewWithTag:332]; auxChart.series=@[auxV,auxRef]; auxChart.colors=@[[UIColor colorWithRed:.35 green:.75 blue:1 alpha:1],[UIColor colorWithWhite:.7 alpha:1]];
+  NSDictionary *lastAux=self.auxRecords.lastObject; ((UILabel *)[self.view viewWithTag:329]).text=lastAux?[NSString stringWithFormat:@"12 V HISTORY\n%lu samples  ·  latest %.2f V (reference %.2f V)\n%.2f A  ·  ambient %.0f°",(unsigned long)self.auxRecords.count,[lastAux[@"volt"] doubleValue],[lastAux[@"voltRef"] doubleValue],[lastAux[@"current"] doubleValue],[lastAux[@"ambient"] doubleValue]]:@"12 V HISTORY\nNo history loaded";
+}
+- (void)loadScreenshotPreview:(BOOL)loading
+{
+  [self.packRecords removeAllObjects]; [self.latestCells removeAllObjects]; [self.auxRecords removeAllObjects];
+  for (NSInteger i=0;i<18;i++) [self.packRecords addObject:@{@"time":@"2026-09-05 12:00:00",@"voltAlert":@0,@"tempAlert":@0,@"soc":@(78-i*.35),@"volt":@(397.2-i*.18),@"voltMin":@(395.8-i*.19),@"temp":@(24+sin(i/3.0)),@"voltDev":@(.027+i*.0003),@"tempDev":@(1.4)}];
+  for (NSInteger i=1;i<=96;i++) self.latestCells[[NSString stringWithFormat:@"%ld",(long)i]]=@{@"voltAlert":@(i==47),@"tempAlert":@0,@"volt":@(4.112+sin(i*.43)*.009-(i==47?.021:0)),@"voltMin":@(4.071+sin(i*.31)*.008),@"voltMax":@(4.129+sin(i*.29)*.006),@"voltDev":@(i==47?-.021:.007),@"temp":@(24+sin(i*.19)*2),@"tempMin":@(20),@"tempMax":@(28),@"tempDev":@(2)};
+  for (NSInteger i=0;i<24;i++) [self.auxRecords addObject:@{@"time":@"2026-09-05 12:00:00",@"volt":@(12.54+sin(i*.38)*.18),@"voltRef":@(12.60),@"current":@(-.35+sin(i*.27)*.12),@"ambient":@(18),@"charger":@(25)}];
+  [self updateHistoryViews];
+  ((UILabel *)[self.view viewWithTag:326]).text=loading?@"HISTORY\nLoading cell records… 64 of 96":@"HISTORY\nLoaded 18 pack, 96 cell and 24 12 V records";
+  self.navigationItem.rightBarButtonItem.enabled=!loading;
 }
 - (void)close:(id)sender { [self.navigationController popViewControllerAnimated:YES]; }
 @end
@@ -909,10 +1027,10 @@
 #if DEBUG && TARGET_OS_SIMULATOR
   if (self.screenshotScenarioHandled) return;
   NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
-  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"] && ![scenario isEqualToString:@"energy"] && ![scenario isEqualToString:@"battery-diagnostics"]) return;
+  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"] && ![scenario isEqualToString:@"energy"] && ![scenario hasPrefix:@"battery-"]) return;
   self.screenshotScenarioHandled = YES;
   if ([scenario isEqualToString:@"energy"]) { [self openEnergy]; return; }
-  if ([scenario isEqualToString:@"battery-diagnostics"]) {
+  if ([scenario isEqualToString:@"battery-diagnostics"] || [scenario isEqualToString:@"battery-history-loading"]) {
     OVMSEnergyViewController *energy = [self openEnergy];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [energy openBatteryDiagnostics]; });
     return;
