@@ -9,12 +9,46 @@
 #import "ovmsCarsTableViewController.h"
 #import "ovmsCarsFormViewController.h"
 #import "Cars.h"
+#import "JHNotificationManager.h"
 
 #import "OCMSyncHelper.h"
 #import <TargetConditionals.h>
 #import <UserNotifications/UserNotifications.h>
 
+@interface OVMSVehicleDiagnosticsViewController : UIViewController <ovmsUpdateDelegate>
+@end
+
+@implementation OVMSVehicleDiagnosticsViewController
+- (UILabel *)card:(NSInteger)tag
+{
+  UILabel *label=[[UILabel alloc] init]; label.tag=tag; label.numberOfLines=0; label.textColor=[UIColor whiteColor]; label.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody]; label.backgroundColor=[UIColor colorWithRed:.086 green:.125 blue:.196 alpha:1]; label.layer.cornerRadius=13; label.layer.masksToBounds=YES; [label.heightAnchor constraintGreaterThanOrEqualToConstant:62].active=YES; return label;
+}
+- (UIButton *)action:(NSString *)title command:(NSString *)command
+{
+  UIButton *button=[UIButton buttonWithType:UIButtonTypeSystem]; button.backgroundColor=[UIColor colorWithRed:.12 green:.34 blue:.62 alpha:1]; button.layer.cornerRadius=12; button.titleLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleHeadline]; [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal]; [button setTitle:title forState:UIControlStateNormal]; button.accessibilityValue=command; button.accessibilityHint=[NSString stringWithFormat:@"Runs %@ and stores its response in Messages",command]; [button addTarget:self action:@selector(runDiagnostic:) forControlEvents:UIControlEventTouchUpInside]; [button.heightAnchor constraintEqualToConstant:48].active=YES; return button;
+}
+- (void)runDiagnostic:(UIButton *)sender { NSString *command=sender.accessibilityValue; [[ovmsAppDelegate myRef] addMessage:command incoming:NO]; [[ovmsAppDelegate myRef] commandDoCommand:command]; [JHNotificationManager notificationWithMessage:@"Command sent; response will appear in Messages"]; }
+- (void)viewDidLoad
+{
+  [super viewDidLoad]; self.title=@"Vehicle diagnostics"; self.view.backgroundColor=[UIColor colorWithRed:.047 green:.071 blue:.118 alpha:1];
+  UIScrollView *scroll=[[UIScrollView alloc] init]; scroll.translatesAutoresizingMaskIntoConstraints=NO; [self.view addSubview:scroll]; UIStackView *content=[[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints=NO; content.axis=UILayoutConstraintAxisVertical; content.spacing=11; [scroll addSubview:content]; [NSLayoutConstraint activateConstraints:@[[scroll.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[scroll.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],[scroll.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],[content.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:16],[content.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:16],[content.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-16],[content.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-20]]];
+  UILabel *intro=[[UILabel alloc] init]; intro.text=@"Live module and server information. Diagnostic command responses are saved in Messages."; intro.textColor=[UIColor colorWithWhite:.68 alpha:1]; intro.font=[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]; intro.numberOfLines=0; [content addArrangedSubview:intro];
+  for(NSInteger tag=700;tag<=702;tag++) [content addArrangedSubview:[self card:tag]];
+  [content addArrangedSubview:[self action:@"Module summary" command:@"module summary"]]; [content addArrangedSubview:[self action:@"Network status" command:@"network status"]]; [content addArrangedSubview:[self action:@"Recent module logs" command:@"log tail 50"]]; [self update];
+}
+- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [[ovmsAppDelegate myRef] registerForUpdate:self]; [self update]; }
+- (void)viewWillDisappear:(BOOL)animated { [[ovmsAppDelegate myRef] deregisterFromUpdate:self]; [super viewWillDisappear:animated]; }
+- (void)update
+{
+  ovmsAppDelegate *app=[ovmsAppDelegate myRef]; NSInteger dbm=app.car_gsmlevel<=31?-113+app.car_gsmlevel*2:0; time_t age=app.car_lastupdated?MAX(0,time(0)-app.car_lastupdated):0;
+  ((UILabel *)[self.view viewWithTag:700]).text=[NSString stringWithFormat:@"VEHICLE\n%@  ·  type %@\nVIN %@",app.sel_car?:@"Unknown",app.car_type.length?app.car_type:@"Unknown",app.car_vin.length?app.car_vin:@"Unavailable"];
+  ((UILabel *)[self.view viewWithTag:701]).text=[NSString stringWithFormat:@"FIRMWARE\nVehicle: %@\nServer: %@",app.car_firmware.length?app.car_firmware:@"Unavailable",app.server_firmware.length?app.server_firmware:@"Unavailable"];
+  ((UILabel *)[self.view viewWithTag:702]).text=[NSString stringWithFormat:@"CONNECTION\n%@  ·  signal %@\nLast update %@",app.car_online?@"Online":@"Offline",dbm?[NSString stringWithFormat:@"%ld dBm",(long)dbm]:@"Unavailable",app.car_lastupdated?[NSString stringWithFormat:@"%ld seconds ago",(long)age]:@"Unavailable"];
+}
+@end
+
 @interface OVMSAppSettingsViewController : UIViewController
+- (void)openDiagnostics;
 @end
 
 @implementation OVMSAppSettingsViewController
@@ -33,8 +67,9 @@
 {
   [super viewDidLoad]; self.title = @"App settings"; self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1];
   self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(close:)];
-  UIStackView *content = [[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints = NO; content.axis = UILayoutConstraintAxisVertical; content.spacing = 11; [self.view addSubview:content];
-  [NSLayoutConstraint activateConstraints:@[[content.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:18], [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:16], [content.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-16]]];
+  UIScrollView *scroll=[[UIScrollView alloc] init]; scroll.translatesAutoresizingMaskIntoConstraints=NO; [self.view addSubview:scroll];
+  UIStackView *content = [[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints = NO; content.axis = UILayoutConstraintAxisVertical; content.spacing = 11; [scroll addSubview:content];
+  [NSLayoutConstraint activateConstraints:@[[scroll.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[scroll.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],[scroll.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],[content.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:18], [content.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:16], [content.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-16],[content.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-20]]];
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   [content addArrangedSubview:[self heading:@"NOTIFICATIONS"]];
   UIButton *notificationButton = [UIButton buttonWithType:UIButtonTypeSystem]; [notificationButton setTitle:@"Manage" forState:UIControlStateNormal]; [notificationButton addTarget:self action:@selector(openNotificationSettings) forControlEvents:UIControlEventTouchUpInside];
@@ -50,11 +85,15 @@
   [content addArrangedSubview:[self heading:@"CONNECTION"]];
   UILabel *server = [[UILabel alloc] init]; server.text = [NSString stringWithFormat:@"%@:%@", [defaults stringForKey:@"ovmsServer"], [defaults stringForKey:@"ovmsPort"]]; server.textColor = [UIColor colorWithWhite:0.72 alpha:1]; server.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
   [content addArrangedSubview:[self settingRow:@"OVMS server" detail:@"Configured server endpoint for the legacy OVMS protocol." control:server]];
+  [content addArrangedSubview:[self heading:@"DIAGNOSTICS"]];
+  UIButton *diagnostics=[UIButton buttonWithType:UIButtonTypeSystem]; [diagnostics setTitle:@"Open" forState:UIControlStateNormal]; [diagnostics addTarget:self action:@selector(openDiagnostics) forControlEvents:UIControlEventTouchUpInside];
+  [content addArrangedSubview:[self settingRow:@"Vehicle and module" detail:@"Firmware, connectivity, signal, logs and module commands." control:diagnostics]];
 }
 - (void)mapChanged:(UISwitch *)sender { [[NSUserDefaults standardUserDefaults] setBool:sender.on forKey:@"ovmsOpenChargeMap"]; }
 - (void)tempChanged:(UISegmentedControl *)sender { [[NSUserDefaults standardUserDefaults] setObject:sender.selectedSegmentIndex ? @"F" : @"C" forKey:@"ovmsTemperatures"]; }
 - (void)distanceChanged:(UISegmentedControl *)sender { NSArray *values = @[@"-", @"K", @"M"]; [[NSUserDefaults standardUserDefaults] setObject:values[sender.selectedSegmentIndex] forKey:@"ovmsDistances"]; }
 - (void)openNotificationSettings { [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString] options:@{} completionHandler:nil]; }
+- (void)openDiagnostics { [self.navigationController pushViewController:[[OVMSVehicleDiagnosticsViewController alloc] init] animated:YES]; }
 - (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
 @end
 
@@ -151,7 +190,7 @@
 #if DEBUG && TARGET_OS_SIMULATOR
   if (!self.screenshotScenarioHandled) {
     NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
-    if ([scenario isEqualToString:@"app-settings"]) { self.screenshotScenarioHandled = YES; [self showAppSettings]; }
+    if ([scenario isEqualToString:@"app-settings"] || [scenario isEqualToString:@"vehicle-diagnostics"]) { self.screenshotScenarioHandled = YES; [self showAppSettings]; if([scenario isEqualToString:@"vehicle-diagnostics"]) dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(.7*NSEC_PER_SEC)),dispatch_get_main_queue(),^{ OVMSAppSettingsViewController *settings=(OVMSAppSettingsViewController *)((UINavigationController *)self.presentedViewController).topViewController; [settings openDiagnostics]; }); }
   }
 #endif
   }
