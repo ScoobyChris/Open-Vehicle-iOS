@@ -189,6 +189,57 @@ jobs:
             }
           done
 
+          xcrun simctl shutdown "$device_id" 2>/dev/null || true
+          ipad_id="$(
+            xcrun simctl list devices available --json |
+              jq -r '[.devices[][] | select(.name | startswith("iPad"))][0].udid'
+          )"
+          if [[ -z "$ipad_id" || "$ipad_id" == "null" ]]; then
+            echo "No available iPad simulator was found" >&2
+            exit 1
+          fi
+          echo "Using iPad simulator: $(xcrun simctl list devices | grep "$ipad_id")"
+          xcrun simctl boot "$ipad_id" 2>/dev/null || true
+          xcrun simctl bootstatus "$ipad_id" -b &
+          ipad_boot_pid=$!
+          for _ in {1..90}; do
+            ipad_boot_state="$(ps -p "$ipad_boot_pid" -o state= 2>/dev/null || true)"
+            if [[ -z "$ipad_boot_state" || "$ipad_boot_state" == Z* ]]; then break; fi
+            sleep 2
+          done
+          ipad_boot_state="$(ps -p "$ipad_boot_pid" -o state= 2>/dev/null || true)"
+          if [[ -n "$ipad_boot_state" && "$ipad_boot_state" != Z* ]]; then
+            kill "$ipad_boot_pid" 2>/dev/null || true
+            echo "iPad simulator did not finish booting within three minutes" >&2
+            exit 1
+          fi
+          wait "$ipad_boot_pid"
+          xcrun simctl status_bar "$ipad_id" override --time 09:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
+          xcrun simctl install "$ipad_id" "$RUNNER_TEMP/Build/Open Vehicle.app"
+          for tab_index in "${!screen_names[@]}"; do
+            screen_name="ipad-${screen_names[$tab_index]}"
+            xcrun simctl terminate "$ipad_id" com.openvehicles.ovms 2>/dev/null || true
+            launch_result="$(SIMCTL_CHILD_OVMS_SCREENSHOT_TAB="$tab_index" xcrun simctl launch "$ipad_id" com.openvehicles.ovms)"
+            app_pid="${launch_result##*: }"
+            sleep 3
+            xcrun simctl spawn "$ipad_id" /bin/kill -0 "$app_pid"
+            xcrun simctl io "$ipad_id" screenshot "$RUNNER_TEMP/Screenshots/$screen_name.png"
+          done
+          ipad_scenarios=(charging climate energy battery-diagnostics app-settings)
+          for scenario in "${ipad_scenarios[@]}"; do
+            tab_index=0
+            if [[ "$scenario" == "app-settings" ]]; then tab_index=4; fi
+            xcrun simctl terminate "$ipad_id" com.openvehicles.ovms 2>/dev/null || true
+            launch_result="$(SIMCTL_CHILD_OVMS_SCREENSHOT_TAB="$tab_index" SIMCTL_CHILD_OVMS_SCREENSHOT_SCENARIO="$scenario" xcrun simctl launch "$ipad_id" com.openvehicles.ovms)"
+            app_pid="${launch_result##*: }"
+            sleep 4
+            xcrun simctl spawn "$ipad_id" /bin/kill -0 "$app_pid"
+            xcrun simctl io "$ipad_id" screenshot "$RUNNER_TEMP/Screenshots/ipad-$scenario.png"
+          done
+          for screenshot in ipad-status ipad-car ipad-location ipad-messages ipad-settings ipad-charging ipad-climate ipad-energy ipad-battery-diagnostics ipad-app-settings; do
+            test -s "$RUNNER_TEMP/Screenshots/$screenshot.png" || { echo "Missing iPad screenshot: $screenshot.png" >&2; exit 1; }
+          done
+
       - name: Upload simulator screenshot
         uses: actions/upload-artifact@v5
         with:
