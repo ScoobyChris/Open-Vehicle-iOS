@@ -112,7 +112,7 @@
 - (void)refreshHistory
 {
   ovmsAppDelegate *app=[ovmsAppDelegate myRef]; if (![app commandIsFree]) { ((UILabel *)[self.view viewWithTag:326]).text=@"HISTORY\nAnother vehicle command is pending"; return; }
-  [self.packRecords removeAllObjects]; [self.latestCells removeAllObjects]; [self.auxRecords removeAllObjects]; [self beginHistoryPhase:@"pack" command:@"32,RT-BAT-P"];
+  [self.packRecords removeAllObjects]; [self.latestCells removeAllObjects]; [self.auxRecords removeAllObjects]; [self beginHistoryPhase:@"snapshot" command:@"206"];
 }
 - (void)beginHistoryPhase:(NSString *)phase command:(NSString *)command
 {
@@ -126,13 +126,16 @@
 - (void)advanceHistoryPhase
 {
   [self.loadTimeout invalidate]; self.loadTimeout=nil; [[ovmsAppDelegate myRef] commandCancel];
+  if ([self.loadPhase isEqualToString:@"snapshot"]) { [self beginHistoryPhase:@"pack" command:@"32,RT-BAT-P"]; return; }
   if ([self.loadPhase isEqualToString:@"pack"]) { [self beginHistoryPhase:@"cells" command:@"32,RT-BAT-C"]; return; }
   if ([self.loadPhase isEqualToString:@"cells"]) { [self beginHistoryPhase:@"aux" command:@"32,D"]; return; }
   self.loadPhase=nil; self.navigationItem.rightBarButtonItem.enabled=YES; [self saveHistory]; [self updateHistoryViews]; ((UILabel *)[self.view viewWithTag:326]).text=[NSString stringWithFormat:@"HISTORY\nLoaded %lu pack, %lu cell and %lu 12 V records",(unsigned long)self.packRecords.count,(unsigned long)self.latestCells.count,(unsigned long)self.auxRecords.count];
 }
 - (void)commandResult:(NSArray *)result
 {
-  if (!self.loadPhase || result.count<3) return; NSInteger code=[result[1] integerValue];
+  if (!self.loadPhase || result.count<2) return; NSInteger code=[result[1] integerValue];
+  if ([self.loadPhase isEqualToString:@"snapshot"] && code==0) { [self advanceHistoryPhase]; return; }
+  if (result.count<3) return;
   if ([result[2] isEqual:@"No historical data available"]) { [self advanceHistoryPhase]; return; }
   if (code!=0) { [self.loadTimeout invalidate]; [[ovmsAppDelegate myRef] commandCancel]; NSString *phase=self.loadPhase; self.loadPhase=nil; self.navigationItem.rightBarButtonItem.enabled=YES; ((UILabel *)[self.view viewWithTag:326]).text=[NSString stringWithFormat:@"HISTORY\n%@ data unavailable: %@",phase,result.count>2?result[2]:@"vehicle rejected request"]; return; }
   if (result.count<6) return; NSString *type=result[4];
