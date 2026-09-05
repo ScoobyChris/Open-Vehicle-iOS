@@ -248,10 +248,14 @@
 - (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
 @end
 
-@interface OVMSChargingViewController : UIViewController <ovmsUpdateDelegate>
+@interface OVMSChargingViewController : UIViewController <ovmsUpdateDelegate, ovmsCommandDelegate>
+@property (strong, nonatomic) NSTimer *commandTimeout;
+@property (copy, nonatomic) NSString *pendingAction;
+@property (copy, nonatomic) NSString *pendingFollowupCommand;
 - (void)showStartConfirmation;
 - (void)showStopConfirmation;
 - (void)showChargingSettings;
+- (void)showCommandPreview:(NSString *)status pending:(BOOL)pending;
 @end
 
 @implementation OVMSChargingViewController
@@ -362,14 +366,22 @@
                       app.car_rangelimit > 0 ? [NSString stringWithFormat:@"%d", app.car_rangelimit] : @"Not set"];
   [content addArrangedSubview:[self metricWithTitle:@"CHARGING LIMITS" value:limits tag:106]];
 
+  UILabel *commandStatus = [self valueLabel:@"Ready" size:14.0];
+  commandStatus.tag = 107;
+  commandStatus.textColor = [UIColor colorWithWhite:0.70 alpha:1.0];
+  commandStatus.accessibilityIdentifier = @"charging-command-status";
+  [content addArrangedSubview:commandStatus];
+
   UIButton *settings = [self actionButton:@"Charging settings" selector:@selector(showChargingSettings) color:[UIColor colorWithRed:0.12 green:0.34 blue:0.62 alpha:1.0]];
   [content addArrangedSubview:settings];
   UIStackView *actions = [[UIStackView alloc] init];
   actions.axis = UILayoutConstraintAxisHorizontal;
   actions.distribution = UIStackViewDistributionFillEqually;
   actions.spacing = 12.0;
-  [actions addArrangedSubview:[self actionButton:@"Start charging" selector:@selector(showStartConfirmation) color:[UIColor colorWithRed:0.12 green:0.55 blue:0.32 alpha:1.0]]];
-  [actions addArrangedSubview:[self actionButton:@"Stop charging" selector:@selector(showStopConfirmation) color:[UIColor colorWithRed:0.72 green:0.20 blue:0.20 alpha:1.0]]];
+  UIButton *start = [self actionButton:@"Start charging" selector:@selector(showStartConfirmation) color:[UIColor colorWithRed:0.12 green:0.55 blue:0.32 alpha:1.0]]; start.tag = 108;
+  UIButton *stop = [self actionButton:@"Stop charging" selector:@selector(showStopConfirmation) color:[UIColor colorWithRed:0.72 green:0.20 blue:0.20 alpha:1.0]]; stop.tag = 109;
+  [actions addArrangedSubview:start];
+  [actions addArrangedSubview:stop];
   [content addArrangedSubview:actions];
 }
 
@@ -382,8 +394,70 @@
 
 - (void)viewWillDisappear:(BOOL)animated
 {
+  [self.commandTimeout invalidate];
+  self.commandTimeout = nil;
+  if (self.pendingAction) [[ovmsAppDelegate myRef] commandCancel];
   [[ovmsAppDelegate myRef] deregisterFromUpdate:self];
   [super viewWillDisappear:animated];
+}
+
+- (void)setCommandControlsEnabled:(BOOL)enabled status:(NSString *)status
+{
+  ((UIButton *)[self.view viewWithTag:108]).enabled = enabled;
+  ((UIButton *)[self.view viewWithTag:109]).enabled = enabled;
+  UILabel *label = (UILabel *)[self.view viewWithTag:107];
+  label.text = status;
+  label.textColor = enabled ? [UIColor colorWithWhite:0.70 alpha:1.0] : [UIColor colorWithRed:0.96 green:0.72 blue:0.25 alpha:1.0];
+}
+
+- (void)showCommandPreview:(NSString *)status pending:(BOOL)pending
+{
+  [self setCommandControlsEnabled:!pending status:status];
+  UILabel *label = (UILabel *)[self.view viewWithTag:107];
+  if (!pending) label.textColor = [UIColor colorWithRed:0.95 green:0.38 blue:0.36 alpha:1.0];
+}
+
+- (void)issueChargingCommand:(NSString *)command action:(NSString *)action followup:(NSString *)followup
+{
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+  if (![app commandIsFree]) {
+    [self setCommandControlsEnabled:YES status:@"Another vehicle command is still pending"];
+    return;
+  }
+  self.pendingAction = action;
+  self.pendingFollowupCommand = followup;
+  [self setCommandControlsEnabled:NO status:[NSString stringWithFormat:@"%@… waiting for vehicle", action]];
+  [app commandRegister:command callback:self];
+  [self.commandTimeout invalidate];
+  self.commandTimeout = [NSTimer scheduledTimerWithTimeInterval:20.0 target:self selector:@selector(chargingCommandTimedOut:) userInfo:nil repeats:NO];
+}
+
+- (void)chargingCommandTimedOut:(NSTimer *)timer
+{
+  [[ovmsAppDelegate myRef] commandCancel];
+  NSString *action = self.pendingAction ?: @"Command";
+  self.pendingAction = nil; self.pendingFollowupCommand = nil; self.commandTimeout = nil;
+  [self setCommandControlsEnabled:YES status:[NSString stringWithFormat:@"%@ timed out — vehicle state was not changed", action]];
+}
+
+- (void)commandResult:(NSArray *)result
+{
+  [self.commandTimeout invalidate]; self.commandTimeout = nil;
+  NSInteger resultCode = result.count > 1 ? [result[1] integerValue] : -1;
+  NSString *action = self.pendingAction ?: @"Command";
+  NSString *followup = self.pendingFollowupCommand;
+  self.pendingAction = nil; self.pendingFollowupCommand = nil;
+  [[ovmsAppDelegate myRef] commandCancel];
+  if (resultCode == 0 && followup.length) {
+    [self issueChargingCommand:followup action:@"Saving automatic limits" followup:nil];
+    return;
+  }
+  if (resultCode == 0) {
+    [self setCommandControlsEnabled:YES status:[NSString stringWithFormat:@"%@ acknowledged by vehicle", action]];
+  } else {
+    NSString *detail = result.count > 2 ? result[2] : @"Vehicle rejected the command";
+    [self setCommandControlsEnabled:YES status:[NSString stringWithFormat:@"%@ failed: %@", action, detail]];
+  }
 }
 
 - (void)update
@@ -413,7 +487,7 @@
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Start charging?" message:@"The vehicle will begin charging immediately when supported." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:@"Start" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-    [[ovmsAppDelegate myRef] commandDoStartCharge];
+    [self issueChargingCommand:@"11" action:@"Starting charge" followup:nil];
   }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
@@ -423,7 +497,7 @@
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Stop charging?" message:@"Charging will stop before the configured limit is reached." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:@"Stop" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
-    [[ovmsAppDelegate myRef] commandDoStopCharge];
+    [self issueChargingCommand:@"12" action:@"Stopping charge" followup:nil];
   }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
@@ -458,9 +532,10 @@
       [self presentViewController:error animated:YES completion:nil];
       return;
     }
-    [[ovmsAppDelegate myRef] commandDoSetChargeCurrent:(int)current];
-    // Mirrors Android's Nissan Leaf sufficient-range/SOC command.
-    [[ovmsAppDelegate myRef] commandIssue:[NSString stringWithFormat:@"204,%ld,%ld,0", (long)range, (long)soc]];
+    // Serialize both acknowledged commands: the OVMS v2 protocol only has one
+    // command callback slot, so issuing these concurrently can lose a response.
+    NSString *limitsCommand = [NSString stringWithFormat:@"204,%ld,%ld,0", (long)range, (long)soc];
+    [self issueChargingCommand:[NSString stringWithFormat:@"15,%ld", (long)current] action:@"Saving current limit" followup:limitsCommand];
   }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
@@ -803,6 +878,10 @@
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [charging showStopConfirmation]; });
   else if ([scenario isEqualToString:@"charging-settings"])
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [charging showChargingSettings]; });
+  else if ([scenario isEqualToString:@"charging-command-pending"])
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [charging showCommandPreview:@"Starting charge… waiting for vehicle" pending:YES]; });
+  else if ([scenario isEqualToString:@"charging-command-failed"])
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [charging showCommandPreview:@"Starting charge failed: Vehicle is asleep" pending:NO]; });
 #endif
 }
 
