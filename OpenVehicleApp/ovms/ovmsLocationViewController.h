@@ -37,6 +37,7 @@
 @property (strong, nonatomic) UILabel *modernLocationTitle;
 @property (strong, nonatomic) UILabel *modernLocationDetail;
 @property (assign) BOOL screenshotScenarioHandled;
+@property (strong, nonatomic) NSMutableArray *vehicleTrail;
 
 - (IBAction)locationSnapped:(id)sender;
 

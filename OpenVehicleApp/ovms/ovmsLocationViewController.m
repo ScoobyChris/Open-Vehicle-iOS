@@ -26,6 +26,7 @@
     [super viewDidLoad];
     self.isLoadAll = NO;
     self.isUseRange = YES;
+    self.vehicleTrail = [NSMutableArray array];
     [self setupModernMapOverlay];
 }
 
@@ -178,6 +179,10 @@
         self.isUseRange = !self.isUseRange;
         if (self.m_car_location) [self loadData:[ovmsAppDelegate myRef].car_location];
     }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Clear recent vehicle trail" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        [self.vehicleTrail removeAllObjects];
+        [self initOverlays];
+    }]];
     [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     if (sheet.popoverPresentationController) {
         sheet.popoverPresentationController.sourceView = self.view;
@@ -298,6 +303,11 @@
         [myMapView addOverlay:[MKCircle circleWithCenterCoordinate:[ovmsAppDelegate myRef].car_location radius:idealrange]];
         [myMapView addOverlay:[MKCircle circleWithCenterCoordinate:[ovmsAppDelegate myRef].car_location radius:estimatedrange]];
     }
+    if (self.vehicleTrail.count > 1) {
+        CLLocationCoordinate2D coordinates[self.vehicleTrail.count];
+        for (NSUInteger index = 0; index < self.vehicleTrail.count; index++) coordinates[index] = [self.vehicleTrail[index] MKCoordinateValue];
+        [myMapView addOverlay:[MKPolyline polylineWithCoordinates:coordinates count:self.vehicleTrail.count]];
+    }
 }
 
 - (NSArray *)locations {
@@ -350,6 +360,16 @@
                                       location.latitude, location.longitude,
                                       [app.car_speed_s length] ? app.car_speed_s : @"stationary",
                                       [app.car_estimatedrange_s length] ? app.car_estimatedrange_s : @"--"];
+    if (CLLocationCoordinate2DIsValid(location) && (location.latitude != 0 || location.longitude != 0)) {
+        CLLocationCoordinate2D previous = self.vehicleTrail.count ? [[self.vehicleTrail lastObject] MKCoordinateValue] : kCLLocationCoordinate2DInvalid;
+        CLLocation *point = [[CLLocation alloc] initWithLatitude:location.latitude longitude:location.longitude];
+        CLLocation *last = CLLocationCoordinate2DIsValid(previous) ? [[CLLocation alloc] initWithLatitude:previous.latitude longitude:previous.longitude] : nil;
+        if (!last || [point distanceFromLocation:last] >= 10.0) {
+            [self.vehicleTrail addObject:[NSValue valueWithMKCoordinate:location]];
+            if (self.vehicleTrail.count > 100) [self.vehicleTrail removeObjectAtIndex:0];
+            [self initOverlays];
+        }
+    }
 //    CLLocationCoordinate2D location = CLLocationCoordinate2DMake(22.315778,114.220304);
     
 
@@ -557,6 +577,11 @@
 }
 
 - (MKOverlayRenderer *)mapView:(MKMapView *)mapView rendererForOverlay:(id)overlay {
+    if ([overlay isKindOfClass:[MKPolyline class]]) {
+        MKPolylineRenderer *trail = [[MKPolylineRenderer alloc] initWithPolyline:overlay];
+        trail.strokeColor = [UIColor colorWithRed:0.10 green:0.58 blue:1.0 alpha:0.85]; trail.lineWidth = 5.0;
+        return trail;
+    }
     //MKCircleView *circleView = [[MKCircleView alloc] initWithOverlay:overlay];
     MKCircleRenderer *circleView = [[MKCircleRenderer alloc] initWithOverlay:overlay];
     circleView.lineWidth = 3;
