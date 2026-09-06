@@ -172,6 +172,8 @@
 @end
 
 @interface OVMSEnergyViewController : UIViewController <ovmsUpdateDelegate>
+@property (strong, nonatomic) NSMutableArray *powerHistory;
+@property (assign, nonatomic) NSTimeInterval lastPowerSample;
 - (void)openBatteryDiagnostics;
 @end
 
@@ -201,6 +203,8 @@
 - (void)viewDidLoad
 {
   [super viewDidLoad]; self.title = @"Energy";
+  NSArray *savedPower = [[NSUserDefaults standardUserDefaults] arrayForKey:[self powerHistoryKey]];
+  self.powerHistory = savedPower ? [savedPower mutableCopy] : [NSMutableArray array];
   self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1.0];
   self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(close:)];
   UIScrollView *scroll = [[UIScrollView alloc] init]; scroll.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:scroll];
@@ -218,9 +222,17 @@
   [content addArrangedSubview:[self energyMetric:@"LAST TRIP" tag:306]];
   [content addArrangedSubview:[self energyMetric:@"ENERGY USED / REGENERATED" tag:307]];
   [content addArrangedSubview:[self energyMetric:@"12 V BATTERY" tag:308]];
+  [content addArrangedSubview:[self energyMetric:@"RECENT TRACTION POWER" tag:309]];
+  OVMSSparklineView *powerChart = [[OVMSSparklineView alloc] init]; powerChart.tag = 310; powerChart.layer.cornerRadius = 13.0; powerChart.layer.masksToBounds = YES;
+  powerChart.accessibilityLabel = @"Recent traction power chart; values above zero are consumption and values below zero are regeneration";
+  [powerChart.heightAnchor constraintEqualToConstant:180.0].active = YES; [content addArrangedSubview:powerChart];
   UIButton *details = [UIButton buttonWithType:UIButtonTypeSystem]; details.backgroundColor = [UIColor colorWithRed:0.45 green:0.30 blue:0.70 alpha:1.0]; details.layer.cornerRadius = 12.0;
   details.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline]; [details setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal]; [details setTitle:@"Battery diagnostics" forState:UIControlStateNormal];
   [details addTarget:self action:@selector(openBatteryDiagnostics) forControlEvents:UIControlEventTouchUpInside]; [details.heightAnchor constraintEqualToConstant:52.0].active = YES; [content addArrangedSubview:details];
+#if DEBUG && TARGET_OS_SIMULATOR
+  if ([[[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"] isEqualToString:@"energy"] && self.powerHistory.count < 2)
+    for (NSInteger index=0; index<40; index++) [self.powerHistory addObject:@{@"time":@(index), @"power":@(8.0*sin(index*.24)-2.5*cos(index*.51))}];
+#endif
   [self update];
 }
 - (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [[ovmsAppDelegate myRef] registerForUpdate:self]; [self update]; }
@@ -228,6 +240,7 @@
 - (void)update
 {
   ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+  [self recordPowerSample:app.car_power timestamp:app.car_lastupdated];
   double trip = app.car_trip / 10.0; double net = app.car_energyused - app.car_energyrecd;
   double consumption = trip > 0 ? net * 1000.0 / trip : 0;
   NSString *units = [app.car_units isEqualToString:@"K"] ? @"km" : @"mi";
@@ -240,6 +253,19 @@
   ((UILabel *)[self.view viewWithTag:306]).text = [NSString stringWithFormat:@"%.1f %@  ·  %.1f Wh/%@", trip, units, consumption, units];
   ((UILabel *)[self.view viewWithTag:307]).text = [NSString stringWithFormat:@"%.2f kWh used  ·  %.2f kWh regen", app.car_energyused, app.car_energyrecd];
   ((UILabel *)[self.view viewWithTag:308]).text = app.car_aux_battery_voltage > 0 ? [NSString stringWithFormat:@"%.2f V", app.car_aux_battery_voltage] : @"--";
+  NSArray *values = [self.powerHistory valueForKey:@"power"];
+  OVMSSparklineView *chart = (OVMSSparklineView *)[self.view viewWithTag:310]; chart.series = values.count ? @[values] : @[]; chart.colors = @[[UIColor colorWithRed:.30 green:.82 blue:.62 alpha:1]];
+  double minimum=DBL_MAX, maximum=-DBL_MAX; for (NSNumber *value in values) { minimum=MIN(minimum,value.doubleValue); maximum=MAX(maximum,value.doubleValue); }
+  ((UILabel *)[self.view viewWithTag:309]).text = values.count ? [NSString stringWithFormat:@"%lu samples  ·  %.1f to %.1f kW\nPositive: consumption  ·  Negative: regeneration",(unsigned long)values.count,minimum,maximum] : @"Waiting for live power samples";
+}
+- (NSString *)powerHistoryKey { return [NSString stringWithFormat:@"energyPowerHistory.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"]; }
+- (void)recordPowerSample:(double)power timestamp:(time_t)timestamp
+{
+  if (timestamp <= 0 || !isfinite(power) || (self.lastPowerSample > 0 && timestamp-self.lastPowerSample < 15)) return;
+  NSDictionary *last=self.powerHistory.lastObject; if (last && [last[@"time"] doubleValue] == timestamp) return;
+  self.lastPowerSample=timestamp; [self.powerHistory addObject:@{@"time":@(timestamp),@"power":@(power)}];
+  while (self.powerHistory.count > 120) [self.powerHistory removeObjectAtIndex:0];
+  [[NSUserDefaults standardUserDefaults] setObject:self.powerHistory forKey:[self powerHistoryKey]];
 }
 - (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
 - (void)openBatteryDiagnostics { [self.navigationController pushViewController:[[OVMSBatteryDiagnosticsViewController alloc] init] animated:YES]; }
