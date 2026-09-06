@@ -295,6 +295,7 @@
 - (void)switchCar:(NSString*)car;
 - (NSString *)credentialForVehicle:(NSString *)vehicle kind:(NSString *)kind;
 - (void)storeCredentialsForVehicle:(NSString *)vehicle networkPassword:(NSString *)networkPassword userPassword:(NSString *)userPassword;
+- (void)applyAppearancePreference;
 - (void)subscribeGroups;
 
 - (NSString*)convertDistanceUnits:(int)distance;

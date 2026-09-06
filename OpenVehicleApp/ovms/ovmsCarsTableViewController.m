@@ -74,9 +74,14 @@
   [content addArrangedSubview:[self heading:@"NOTIFICATIONS"]];
   UIButton *notificationButton = [UIButton buttonWithType:UIButtonTypeSystem]; [notificationButton setTitle:@"Manage" forState:UIControlStateNormal]; [notificationButton addTarget:self action:@selector(openNotificationSettings) forControlEvents:UIControlEventTouchUpInside];
   [content addArrangedSubview:[self settingRow:@"Vehicle alerts" detail:@"Charging, security and module alerts. Tapping an alert opens Messages." control:notificationButton]];
+  UISwitch *backgroundSwitch=[[UISwitch alloc] init]; backgroundSwitch.on=[defaults boolForKey:@"ovmsBackgroundRefresh"]; [backgroundSwitch addTarget:self action:@selector(backgroundRefreshChanged:) forControlEvents:UIControlEventValueChanged];
+  [content addArrangedSubview:[self settingRow:@"Background refresh" detail:@"Periodically reconnect for fresh status without sending vehicle commands." control:backgroundSwitch]];
   [content addArrangedSubview:[self heading:@"MAP"]];
   UISwitch *mapSwitch = [[UISwitch alloc] init]; mapSwitch.on = [defaults boolForKey:@"ovmsOpenChargeMap"]; [mapSwitch addTarget:self action:@selector(mapChanged:) forControlEvents:UIControlEventValueChanged];
   [content addArrangedSubview:[self settingRow:@"Charging stations" detail:@"Show Open Charge Map locations and vehicle range circles." control:mapSwitch]];
+  [content addArrangedSubview:[self heading:@"APPEARANCE"]];
+  UISegmentedControl *appearance=[[UISegmentedControl alloc] initWithItems:@[@"System",@"Light",@"Dark"]]; NSString *appearanceValue=[defaults stringForKey:@"ovmsAppearance"]?:@"dark"; appearance.selectedSegmentIndex=[appearanceValue isEqualToString:@"system"]?0:([appearanceValue isEqualToString:@"light"]?1:2); [appearance addTarget:self action:@selector(appearanceChanged:) forControlEvents:UIControlEventValueChanged];
+  [content addArrangedSubview:[self settingRow:@"Colour scheme" detail:@"Follow the device appearance or choose a fixed scheme." control:appearance]];
   [content addArrangedSubview:[self heading:@"UNITS"]];
   UISegmentedControl *temp = [[UISegmentedControl alloc] initWithItems:@[@"°C", @"°F"]]; temp.selectedSegmentIndex = [[defaults stringForKey:@"ovmsTemperatures"] isEqualToString:@"F"] ? 1 : 0; [temp addTarget:self action:@selector(tempChanged:) forControlEvents:UIControlEventValueChanged];
   [content addArrangedSubview:[self settingRow:@"Temperature" detail:@"Applied throughout climate and diagnostics." control:temp]];
@@ -90,8 +95,10 @@
   [content addArrangedSubview:[self settingRow:@"Vehicle and module" detail:@"Firmware, connectivity, signal, logs and module commands." control:diagnostics]];
 }
 - (void)mapChanged:(UISwitch *)sender { [[NSUserDefaults standardUserDefaults] setBool:sender.on forKey:@"ovmsOpenChargeMap"]; }
+- (void)backgroundRefreshChanged:(UISwitch *)sender { [[NSUserDefaults standardUserDefaults] setBool:sender.on forKey:@"ovmsBackgroundRefresh"]; [[UIApplication sharedApplication] setMinimumBackgroundFetchInterval:sender.on?1800:UIApplicationBackgroundFetchIntervalNever]; }
 - (void)tempChanged:(UISegmentedControl *)sender { [[NSUserDefaults standardUserDefaults] setObject:sender.selectedSegmentIndex ? @"F" : @"C" forKey:@"ovmsTemperatures"]; }
 - (void)distanceChanged:(UISegmentedControl *)sender { NSArray *values = @[@"-", @"K", @"M"]; [[NSUserDefaults standardUserDefaults] setObject:values[sender.selectedSegmentIndex] forKey:@"ovmsDistances"]; }
+- (void)appearanceChanged:(UISegmentedControl *)sender { NSArray *values=@[@"system",@"light",@"dark"]; [[NSUserDefaults standardUserDefaults] setObject:values[sender.selectedSegmentIndex] forKey:@"ovmsAppearance"]; [[ovmsAppDelegate myRef] applyAppearancePreference]; }
 - (void)openNotificationSettings { [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString] options:@{} completionHandler:nil]; }
 - (void)openDiagnostics { [self.navigationController pushViewController:[[OVMSVehicleDiagnosticsViewController alloc] init] animated:YES]; }
 - (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }

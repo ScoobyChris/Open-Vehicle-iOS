@@ -152,6 +152,8 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
                                                             @"-", @"ovmsTemperatures",
                                                             @"-", @"ovmsDistances",
                                                             @"-", @"ovmsPressures",
+                                                            @"dark", @"ovmsAppearance",
+                                                            @YES, @"ovmsBackgroundRefresh",
                                                             @"DEMO", @"selCar",
                                                             @"Demonstration Car", @"selLabel",
                                                             @"car_roadster_lightninggreen.png", @"selImagePath",
@@ -170,6 +172,8 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
   [[UINavigationBar appearance] setTitleTextAttributes:@{NSForegroundColorAttributeName:[UIColor whiteColor]}];
   [[UITabBar appearance] setBarTintColor:[UIColor blackColor]];
   [[UITabBar appearance] setTintColor:[UIColor colorWithRed:0.10 green:0.58 blue:1.0 alpha:1.0]];
+  [self applyAppearancePreference];
+  [application setMinimumBackgroundFetchInterval:[defaults boolForKey:@"ovmsBackgroundRefresh"] ? 1800 : UIApplicationBackgroundFetchIntervalNever];
 
   apns_deviceid = [defaults stringForKey:@"apnsDeviceid"];
   apns_devicetoken = @"";
@@ -328,6 +332,12 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
   if ([message length]) [self addMessage:message incoming:YES];
 }
 
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler
+{
+  [self application:application didReceiveRemoteNotification:userInfo];
+  completionHandler(UIBackgroundFetchResultNewData);
+}
+
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler
 {
   NSString *message = notification.request.content.body;
@@ -394,6 +404,15 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
      */    
     car_ambient_weather = -1;
     [self serverConnect];
+}
+
+- (void)application:(UIApplication *)application performFetchWithCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler
+{
+  if (![[NSUserDefaults standardUserDefaults] boolForKey:@"ovmsBackgroundRefresh"]) { completionHandler(UIBackgroundFetchResultNoData); return; }
+  time_t previousUpdate=self.car_lastupdated; [self serverConnect];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(12*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+    BOOL changed=self.car_lastupdated>previousUpdate; if(application.applicationState==UIApplicationStateBackground) [self serverDisconnect]; completionHandler(changed?UIBackgroundFetchResultNewData:UIBackgroundFetchResultNoData);
+  });
 }
 
 - (void)applicationWillTerminate:(UIApplication *)application
@@ -520,6 +539,14 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
 - (void)storeCredentialsForVehicle:(NSString *)vehicle networkPassword:(NSString *)networkPassword userPassword:(NSString *)userPassword
 {
   [self storeCredential:networkPassword vehicle:vehicle kind:@"network"]; [self storeCredential:userPassword vehicle:vehicle kind:@"user"];
+}
+
+- (void)applyAppearancePreference
+{
+  if (@available(iOS 13.0, *)) {
+    NSString *appearance=[[NSUserDefaults standardUserDefaults] stringForKey:@"ovmsAppearance"] ?: @"dark";
+    self.window.overrideUserInterfaceStyle=[appearance isEqualToString:@"light"]?UIUserInterfaceStyleLight:([appearance isEqualToString:@"system"]?UIUserInterfaceStyleUnspecified:UIUserInterfaceStyleDark);
+  }
 }
 
 - (void)subscribeGroups

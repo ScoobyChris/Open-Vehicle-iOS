@@ -43,6 +43,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             build | tee "$RUNNER_TEMP/xcodebuild.log"
+          test -f "$RUNNER_TEMP/Build/Open Vehicle.app/PrivacyInfo.xcprivacy"
+          plutil -lint "$RUNNER_TEMP/Build/Open Vehicle.app/PrivacyInfo.xcprivacy"
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$RUNNER_TEMP/Build/Open Vehicle.app/Info.plist"
 
       - name: Launch app and capture screenshot
         run: |
