@@ -13,6 +13,13 @@
 #import "Reachability.h"
 #import "Cars.h"
 
+static NSString * const OVMSNotificationCategoryAlert = @"OVMS_ALERT";
+static NSString * const OVMSNotificationCategoryCharge = @"OVMS_CHARGE";
+static NSString * const OVMSNotificationActionMessages = @"OVMS_OPEN_MESSAGES";
+static NSString * const OVMSNotificationActionLocation = @"OVMS_OPEN_LOCATION";
+static NSString * const OVMSNotificationActionCharging = @"OVMS_OPEN_CHARGING";
+static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
+
 @implementation ovmsAppDelegate
 
 @synthesize window = _window;
@@ -212,13 +219,20 @@
     }
   
   // Let the device know we want to receive push notifications.
+  UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+  center.delegate = self;
+  UNNotificationAction *messagesAction = [UNNotificationAction actionWithIdentifier:OVMSNotificationActionMessages title:@"View messages" options:UNNotificationActionOptionForeground];
+  UNNotificationAction *locationAction = [UNNotificationAction actionWithIdentifier:OVMSNotificationActionLocation title:@"Show location" options:UNNotificationActionOptionForeground];
+  UNNotificationAction *chargingAction = [UNNotificationAction actionWithIdentifier:OVMSNotificationActionCharging title:@"View charging" options:UNNotificationActionOptionForeground];
+  UNNotificationAction *settingsAction = [UNNotificationAction actionWithIdentifier:OVMSNotificationActionSettings title:@"Notification settings" options:UNNotificationActionOptionForeground];
+  UNNotificationCategory *alertCategory = [UNNotificationCategory categoryWithIdentifier:OVMSNotificationCategoryAlert actions:@[messagesAction, locationAction, settingsAction] intentIdentifiers:@[] options:UNNotificationCategoryOptionCustomDismissAction];
+  UNNotificationCategory *chargeCategory = [UNNotificationCategory categoryWithIdentifier:OVMSNotificationCategoryCharge actions:@[chargingAction, messagesAction] intentIdentifiers:@[] options:UNNotificationCategoryOptionCustomDismissAction];
+  [center setNotificationCategories:[NSSet setWithObjects:alertCategory, chargeCategory, nil]];
 #if TARGET_IPHONE_SIMULATOR
   // Nothing to do on the simulator, as APNS not supported by Apple
   NSLog(@"No PUSH notifications on simultor, apns_deviceid: %@", apns_deviceid);
 #else
   NSLog(@"Registering for PUSH notifications apns_deviceid: %@", apns_deviceid);
-  UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-  center.delegate = self;
   [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge)
                         completionHandler:^(BOOL granted, NSError *error) {
     if (error) NSLog(@"Notification authorization failed: %@", error);
@@ -315,8 +329,17 @@
 {
   NSString *message = response.notification.request.content.body;
   if ([message length]) [self addMessage:message incoming:YES];
-  if ([self.window.rootViewController isKindOfClass:[UITabBarController class]])
-    ((UITabBarController *)self.window.rootViewController).selectedIndex = 3;
+  NSDictionary *payload=response.notification.request.content.userInfo;
+  NSString *vehicle=payload[@"vehicleid"] ?: payload[@"vehicle"];
+  if (vehicle.length && ![vehicle isEqualToString:self.sel_car]) [self switchCar:vehicle];
+  if ([self.window.rootViewController isKindOfClass:[UITabBarController class]]) {
+    UITabBarController *tabs=(UITabBarController *)self.window.rootViewController;
+    NSString *action=response.actionIdentifier;
+    if ([action isEqualToString:OVMSNotificationActionLocation]) tabs.selectedIndex=2;
+    else if ([action isEqualToString:OVMSNotificationActionCharging]) tabs.selectedIndex=0;
+    else if ([action isEqualToString:OVMSNotificationActionSettings]) tabs.selectedIndex=4;
+    else tabs.selectedIndex=3;
+  }
   completionHandler();
 }
 
