@@ -9,6 +9,7 @@
 #import "ovmsLocationViewController.h"
 #import "OCMInformationController.h"
 #import <TargetConditionals.h>
+#import <math.h>
 
 #define IDENTIFIER_CLUSTER @"cluster"
 #define IDENTIFIER_PIN @"pin"
@@ -27,6 +28,7 @@
     self.isLoadAll = NO;
     self.isUseRange = YES;
     self.vehicleTrail = [NSMutableArray array];
+    [self restoreVehicleTrail];
     [self setupModernMapOverlay];
 }
 
@@ -112,6 +114,8 @@
 
 - (void)viewWillDisappear:(BOOL)animated {
 	[super viewWillDisappear:animated];
+    [self.historyTimeout invalidate];
+    if (self.historyLoading) { [[ovmsAppDelegate myRef] commandCancel]; self.historyLoading = NO; }
     
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     
@@ -139,6 +143,12 @@
     if ([scenario isEqualToString:@"map-options"]) {
         self.screenshotScenarioHandled = YES;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [self showMapOptions]; });
+    } else if ([scenario isEqualToString:@"map-history-loading"]) {
+        self.screenshotScenarioHandled = YES;
+        CLLocationCoordinate2D center=[ovmsAppDelegate myRef].car_location;
+        if (!CLLocationCoordinate2DIsValid(center) || (center.latitude==0 && center.longitude==0)) center=CLLocationCoordinate2DMake(51.5074,-0.1278);
+        [self.vehicleTrail removeAllObjects]; for(NSInteger i=0;i<18;i++) [self.vehicleTrail addObject:[NSValue valueWithMKCoordinate:CLLocationCoordinate2DMake(center.latitude-.012+i*.0007,center.longitude-.016+i*.0009+sin(i*.5)*.001)]];
+        [self initOverlays]; self.modernLocationTitle.text=@"Loading trip history…"; self.modernLocationDetail.text=@"Receiving GPS record 64 of 180 from the vehicle server";
     }
 #endif
 }
@@ -179,8 +189,10 @@
         self.isUseRange = !self.isUseRange;
         if (self.m_car_location) [self loadData:[ovmsAppDelegate myRef].car_location];
     }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Refresh trip history" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [self refreshVehicleHistory]; }]];
     [sheet addAction:[UIAlertAction actionWithTitle:@"Clear recent vehicle trail" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
         [self.vehicleTrail removeAllObjects];
+        [[NSUserDefaults standardUserDefaults] removeObjectForKey:[self vehicleTrailKey]];
         [self initOverlays];
     }]];
     [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
@@ -189,6 +201,40 @@
         sheet.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMaxY(self.view.bounds) - 60, 1, 1);
     }
     [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (NSString *)vehicleTrailKey { return [NSString stringWithFormat:@"vehicleTrail.%@",[ovmsAppDelegate myRef].sel_car?:@"vehicle"]; }
+- (void)restoreVehicleTrail
+{
+    NSArray *saved=[[NSUserDefaults standardUserDefaults] arrayForKey:[self vehicleTrailKey]];
+    for(NSDictionary *point in saved){ CLLocationDegrees lat=[point[@"lat"] doubleValue],lon=[point[@"lon"] doubleValue]; CLLocationCoordinate2D coordinate=CLLocationCoordinate2DMake(lat,lon); if(CLLocationCoordinate2DIsValid(coordinate)) [self.vehicleTrail addObject:[NSValue valueWithMKCoordinate:coordinate]]; }
+}
+- (void)saveVehicleTrail
+{
+    NSMutableArray *saved=[NSMutableArray arrayWithCapacity:self.vehicleTrail.count]; for(NSValue *value in self.vehicleTrail){ CLLocationCoordinate2D point=value.MKCoordinateValue; [saved addObject:@{@"lat":@(point.latitude),@"lon":@(point.longitude)}]; } [[NSUserDefaults standardUserDefaults] setObject:saved forKey:[self vehicleTrailKey]];
+}
+- (void)refreshVehicleHistory
+{
+    ovmsAppDelegate *app=[ovmsAppDelegate myRef]; if(![app commandIsFree]){ self.modernLocationTitle.text=@"History unavailable"; self.modernLocationDetail.text=@"Another vehicle command is still pending"; return; }
+    self.pendingHistoryPoints=[NSMutableArray array]; self.historyLoading=YES; self.modernLocationTitle.text=@"Loading trip history…"; self.modernLocationDetail.text=@"Requesting GPS records from the vehicle server"; [app commandRegister:@"32,RT-GPS-Log" callback:self]; self.historyTimeout=[NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(vehicleHistoryTimedOut:) userInfo:nil repeats:NO];
+}
+- (void)vehicleHistoryTimedOut:(NSTimer *)timer
+{
+    [[ovmsAppDelegate myRef] commandCancel]; self.historyLoading=NO; self.historyTimeout=nil; self.pendingHistoryPoints=nil; self.modernLocationTitle.text=@"Trip history timed out"; self.modernLocationDetail.text=@"The saved trail remains available; try again when the module is online";
+}
+- (void)commandResult:(NSArray *)result
+{
+    if(!self.historyLoading || result.count<3) return;
+    if([result[2] isEqual:@"No historical data available"]){ [self finishVehicleHistory]; return; }
+    NSInteger code=[result[1] integerValue]; if(code!=0){ [self.historyTimeout invalidate]; [[ovmsAppDelegate myRef] commandCancel]; self.historyLoading=NO; self.modernLocationTitle.text=@"History unavailable"; self.modernLocationDetail.text=result.count>2?result[2]:@"Vehicle rejected the request"; return; }
+    if(result.count>8 && [result[4] isEqualToString:@"RT-GPS-Log"]){ CLLocationCoordinate2D point=CLLocationCoordinate2DMake([result[7] doubleValue],[result[8] doubleValue]); if(CLLocationCoordinate2DIsValid(point) && (point.latitude!=0 || point.longitude!=0)) [self.pendingHistoryPoints addObject:[NSValue valueWithMKCoordinate:point]]; self.modernLocationDetail.text=[NSString stringWithFormat:@"Receiving GPS record %@ of %@ from the vehicle server",result[2],result[3]]; }
+    if(result.count>3 && [result[2] integerValue]==[result[3] integerValue]) [self finishVehicleHistory];
+}
+- (void)finishVehicleHistory
+{
+    [self.historyTimeout invalidate]; self.historyTimeout=nil; [[ovmsAppDelegate myRef] commandCancel]; self.historyLoading=NO;
+    if(self.pendingHistoryPoints.count){ self.vehicleTrail=self.pendingHistoryPoints; if(self.vehicleTrail.count>2000) [self.vehicleTrail removeObjectsInRange:NSMakeRange(0,self.vehicleTrail.count-2000)]; [self saveVehicleTrail]; [self initOverlays]; self.modernLocationTitle.text=@"Trip history loaded"; self.modernLocationDetail.text=[NSString stringWithFormat:@"%lu GPS points saved for offline viewing",(unsigned long)self.vehicleTrail.count]; } else { self.modernLocationTitle.text=@"No trip history"; self.modernLocationDetail.text=@"The server has no GPS log records for this vehicle"; }
+    self.pendingHistoryPoints=nil;
 }
 
 #pragma mark - PopoverViewDelegate Methods
@@ -366,7 +412,8 @@
         CLLocation *last = CLLocationCoordinate2DIsValid(previous) ? [[CLLocation alloc] initWithLatitude:previous.latitude longitude:previous.longitude] : nil;
         if (!last || [point distanceFromLocation:last] >= 10.0) {
             [self.vehicleTrail addObject:[NSValue valueWithMKCoordinate:location]];
-            if (self.vehicleTrail.count > 100) [self.vehicleTrail removeObjectAtIndex:0];
+            if (self.vehicleTrail.count > 2000) [self.vehicleTrail removeObjectAtIndex:0];
+            [self saveVehicleTrail];
             [self initOverlays];
         }
     }
