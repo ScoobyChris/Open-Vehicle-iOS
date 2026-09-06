@@ -387,6 +387,7 @@
     // Delete the row from the data source
     if ([_cars count]==1) return; // Can't delete the last car
     Cars *car = [_cars objectAtIndex:indexPath.row];
+    [[ovmsAppDelegate myRef] storeCredentialsForVehicle:car.vehicleid networkPassword:nil userPassword:nil];
     [_context deleteObject:car];
     NSError *error;
     if (![_context save:&error])

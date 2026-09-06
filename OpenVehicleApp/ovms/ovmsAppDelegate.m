@@ -12,6 +12,7 @@
 #import "JHNotificationManager.h"
 #import "Reachability.h"
 #import "Cars.h"
+#import <Security/Security.h>
 
 static NSString * const OVMSNotificationCategoryAlert = @"OVMS_ALERT";
 static NSString * const OVMSNotificationCategoryCharge = @"OVMS_CHARGE";
@@ -19,6 +20,7 @@ static NSString * const OVMSNotificationActionMessages = @"OVMS_OPEN_MESSAGES";
 static NSString * const OVMSNotificationActionLocation = @"OVMS_OPEN_LOCATION";
 static NSString * const OVMSNotificationActionCharging = @"OVMS_OPEN_CHARGING";
 static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
+static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-credentials";
 
 @implementation ovmsAppDelegate
 
@@ -152,8 +154,6 @@ static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
                                                             @"-", @"ovmsPressures",
                                                             @"DEMO", @"selCar",
                                                             @"Demonstration Car", @"selLabel",
-                                                            @"DEMO", @"selNetPass",
-                                                            @"DEMO", @"selUserPass",
                                                             @"car_roadster_lightninggreen.png", @"selImagePath",
                                                             @"", @"apnsDeviceid",
                                                             @"", @"locationGroups",
@@ -193,8 +193,12 @@ static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
   sel_car = [defaults stringForKey:@"selCar"];
   sel_label = [defaults stringForKey:@"selLabel"];
   self.sel_connection_type_ids = [defaults stringForKey:@"selConnectionTypeIds"];
-  sel_netpass = [defaults stringForKey:@"selNetPass"];
-  sel_userpass = [defaults stringForKey:@"selUserPass"];
+  NSString *legacyNetPass = [defaults stringForKey:@"selNetPass"];
+  NSString *legacyUserPass = [defaults stringForKey:@"selUserPass"];
+  sel_netpass = [self credentialForVehicle:sel_car kind:@"network"] ?: legacyNetPass;
+  sel_userpass = [self credentialForVehicle:sel_car kind:@"user"] ?: legacyUserPass;
+  if (sel_netpass.length || sel_userpass.length) [self storeCredentialsForVehicle:sel_car networkPassword:sel_netpass userPassword:sel_userpass];
+  [defaults removeObjectForKey:@"selNetPass"]; [defaults removeObjectForKey:@"selUserPass"];
   sel_imagepath = [defaults stringForKey:@"selImagePath"];
   
   NSManagedObjectContext *context = [self managedObjectContext];
@@ -217,6 +221,15 @@ static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
       NSLog(@"Whoops, couldn't save: %@", [error localizedDescription]);
       }
     }
+  NSArray *configuredCars=[context executeFetchRequest:request error:&error];
+  for (Cars *configuredCar in configuredCars) {
+    NSString *network=[self credentialForVehicle:configuredCar.vehicleid kind:@"network"] ?: configuredCar.netpass;
+    NSString *user=[self credentialForVehicle:configuredCar.vehicleid kind:@"user"] ?: configuredCar.userpass;
+    if (network.length || user.length) [self storeCredentialsForVehicle:configuredCar.vehicleid networkPassword:network userPassword:user];
+    configuredCar.netpass=@""; configuredCar.userpass=@"";
+    if ([configuredCar.vehicleid isEqualToString:sel_car]) { sel_netpass=network; sel_userpass=user; }
+  }
+  if (context.hasChanges) [context save:&error];
   
   // Let the device know we want to receive push notifications.
   UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
@@ -354,8 +367,6 @@ static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
   [defaults setObject:sel_car forKey:@"selCar"];
   [defaults setObject:sel_label forKey:@"selLabel"];
   [defaults setObject:self.sel_connection_type_ids forKey:@"selConnectionTypeIds"];
-  [defaults setObject:sel_netpass forKey:@"selNetPass"];
-  [defaults setObject:sel_userpass forKey:@"selUserPass"];
   [defaults setObject:sel_imagepath forKey:@"selImagePath"];
   [defaults synchronize];
 }
@@ -397,8 +408,6 @@ static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
   [defaults setObject:sel_car forKey:@"selCar"];
   [defaults setObject:sel_label forKey:@"selLabel"];
   [defaults setObject:self.sel_connection_type_ids forKey:@"selConnectionTypeIds"];
-  [defaults setObject:sel_netpass forKey:@"selNetPass"];
-  [defaults setObject:sel_userpass forKey:@"selUserPass"];
   [defaults setObject:sel_imagepath forKey:@"selImagePath"];
   [defaults synchronize];
 
@@ -475,8 +484,11 @@ static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
       sel_car = car.vehicleid;
       sel_label = car.label;
       self.sel_connection_type_ids = car.connection_type_ids;
-      sel_userpass = car.userpass;
-      sel_netpass = car.netpass;
+      sel_userpass = [self credentialForVehicle:car.vehicleid kind:@"user"] ?: car.userpass;
+      sel_netpass = [self credentialForVehicle:car.vehicleid kind:@"network"] ?: car.netpass;
+      if (sel_userpass.length || sel_netpass.length) [self storeCredentialsForVehicle:car.vehicleid networkPassword:sel_netpass userPassword:sel_userpass];
+      car.userpass=@""; car.netpass=@"";
+      if (context.hasChanges) [context save:&error];
       sel_imagepath = car.imagepath;
       if ((![oldcar isEqualToString:sel_car])||(![oldnewpass isEqualToString:sel_netpass]))
         {
@@ -486,6 +498,28 @@ static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
         }
       }
     }
+}
+
+- (NSString *)credentialForVehicle:(NSString *)vehicle kind:(NSString *)kind
+{
+  if (!vehicle.length || !kind.length) return nil;
+  NSString *account=[NSString stringWithFormat:@"%@.%@",vehicle,kind];
+  NSDictionary *query=@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:OVMSKeychainService,(__bridge id)kSecAttrAccount:account,(__bridge id)kSecReturnData:@YES,(__bridge id)kSecMatchLimit:(__bridge id)kSecMatchLimitOne};
+  CFTypeRef result=NULL; OSStatus status=SecItemCopyMatching((__bridge CFDictionaryRef)query,&result); if(status!=errSecSuccess || !result) return nil;
+  NSData *data=CFBridgingRelease(result); return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
+- (void)storeCredential:(NSString *)value vehicle:(NSString *)vehicle kind:(NSString *)kind
+{
+  if(!vehicle.length || !kind.length) return; NSString *account=[NSString stringWithFormat:@"%@.%@",vehicle,kind]; NSDictionary *identity=@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:OVMSKeychainService,(__bridge id)kSecAttrAccount:account};
+  if(!value.length){ SecItemDelete((__bridge CFDictionaryRef)identity); return; }
+  NSData *data=[value dataUsingEncoding:NSUTF8StringEncoding]; NSDictionary *changes=@{(__bridge id)kSecValueData:data,(__bridge id)kSecAttrAccessible:(__bridge id)kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly}; OSStatus status=SecItemUpdate((__bridge CFDictionaryRef)identity,(__bridge CFDictionaryRef)changes);
+  if(status==errSecItemNotFound){ NSMutableDictionary *item=[identity mutableCopy]; [item addEntriesFromDictionary:changes]; SecItemAdd((__bridge CFDictionaryRef)item,NULL); }
+}
+
+- (void)storeCredentialsForVehicle:(NSString *)vehicle networkPassword:(NSString *)networkPassword userPassword:(NSString *)userPassword
+{
+  [self storeCredential:networkPassword vehicle:vehicle kind:@"network"]; [self storeCredential:userPassword vehicle:vehicle kind:@"user"];
 }
 
 - (void)subscribeGroups

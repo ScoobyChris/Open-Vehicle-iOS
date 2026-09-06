@@ -293,6 +293,8 @@
 - (void)serverClearState;
 - (void)handleCommand:(char)code command:(NSString*)cmd;
 - (void)switchCar:(NSString*)car;
+- (NSString *)credentialForVehicle:(NSString *)vehicle kind:(NSString *)kind;
+- (void)storeCredentialsForVehicle:(NSString *)vehicle networkPassword:(NSString *)networkPassword userPassword:(NSString *)userPassword;
 - (void)subscribeGroups;
 
 - (NSString*)convertDistanceUnits:(int)distance;
