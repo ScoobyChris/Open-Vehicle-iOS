@@ -134,20 +134,27 @@
 
 - (void)setupModernControls
   {
+  [self.modernRootScroll removeFromSuperview];
   for (UIView *subview in [self.view.subviews copy]) subview.hidden = YES;
+  self.modernCapabilityType = [ovmsAppDelegate myRef].car_type ?: @"";
   self.view.backgroundColor = [UIColor colorWithRed:0.047 green:0.071 blue:0.118 alpha:1];
   UIScrollView *scroll = [[UIScrollView alloc] init]; scroll.translatesAutoresizingMaskIntoConstraints = NO; scroll.backgroundColor = self.view.backgroundColor; [self.view addSubview:scroll];
+  self.modernRootScroll = scroll;
   UIStackView *content = [[UIStackView alloc] init]; content.translatesAutoresizingMaskIntoConstraints = NO; content.axis = UILayoutConstraintAxisVertical; content.spacing = 12; [scroll addSubview:content];
   [NSLayoutConstraint activateConstraints:@[[scroll.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor], [scroll.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor], [scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor], [scroll.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor], [content.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:16], [content.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:16], [content.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-16], [content.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-20]]];
   UIImageView *car = [[UIImageView alloc] initWithImage:[UIImage imageNamed:[ovmsAppDelegate myRef].sel_imagepath]]; car.contentMode = UIViewContentModeScaleAspectFit; [car.heightAnchor constraintEqualToConstant:175].active = YES; [content addArrangedSubview:car];
   self.modernSecurityState = [self modernCardLabel:@""]; self.modernVehicleState = [self modernCardLabel:@""]; self.modernTPMSState = [self modernCardLabel:@""];
   [content addArrangedSubview:self.modernSecurityState]; [content addArrangedSubview:self.modernVehicleState]; [content addArrangedSubview:self.modernTPMSState];
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef];
   UIStackView *security = [[UIStackView alloc] init]; security.axis = UILayoutConstraintAxisHorizontal; security.distribution = UIStackViewDistributionFillEqually; security.spacing = 10;
-  [security addArrangedSubview:[self modernButton:@"Lock / unlock" action:@selector(showLockControl) color:[UIColor colorWithRed:0.10 green:0.35 blue:0.66 alpha:1]]];
-  [security addArrangedSubview:[self modernButton:@"Valet mode" action:@selector(showValetControl) color:[UIColor colorWithRed:0.45 green:0.30 blue:0.70 alpha:1]]]; [content addArrangedSubview:security];
+  UIButton *lock = [self modernButton:@"Lock / unlock" action:@selector(showLockControl) color:[UIColor colorWithRed:0.10 green:0.35 blue:0.66 alpha:1]]; lock.enabled = [app supportsVehicleCapability:OVMSVehicleCapabilityLock]; lock.alpha = lock.enabled ? 1.0 : 0.4; [security addArrangedSubview:lock];
+  if ([app supportsVehicleCapability:OVMSVehicleCapabilityValet]) [security addArrangedSubview:[self modernButton:@"Valet mode" action:@selector(showValetControl) color:[UIColor colorWithRed:0.45 green:0.30 blue:0.70 alpha:1]]];
+  [content addArrangedSubview:security];
   UIStackView *other = [[UIStackView alloc] init]; other.axis = UILayoutConstraintAxisHorizontal; other.distribution = UIStackViewDistributionFillEqually; other.spacing = 10;
   [other addArrangedSubview:[self modernButton:@"Wake vehicle" action:@selector(showWakeConfirmation) color:[UIColor colorWithRed:0.12 green:0.55 blue:0.32 alpha:1]]];
-  [other addArrangedSubview:[self modernButton:@"Homelink" action:@selector(showHomelinkControl) color:[UIColor colorWithRed:0.72 green:0.38 blue:0.12 alpha:1]]]; [content addArrangedSubview:other];
+  NSString *secondaryTitle = [app supportsVehicleCapability:OVMSVehicleCapabilityDriveProfiles] ? @"Drive profiles" : @"Homelink";
+  if ([app supportsVehicleCapability:OVMSVehicleCapabilityHomelink] || [app supportsVehicleCapability:OVMSVehicleCapabilityDriveProfiles]) [other addArrangedSubview:[self modernButton:secondaryTitle action:@selector(showHomelinkControl) color:[UIColor colorWithRed:0.72 green:0.38 blue:0.12 alpha:1]]];
+  [content addArrangedSubview:other];
   }
 
 - (void)dealloc
@@ -188,6 +195,8 @@
 - (void)viewWillAppear:(BOOL)animated
   {
   [super viewWillAppear:animated];
+  NSString *currentType = [ovmsAppDelegate myRef].car_type ?: @"";
+  if (![self.modernCapabilityType isEqualToString:currentType]) [self setupModernControls];
   self.navigationItem.title = [ovmsAppDelegate myRef].sel_label;
 
   [[ovmsAppDelegate myRef] registerForUpdate:self];
@@ -529,8 +538,10 @@
 
 - (void)showHomelinkControl
   {
-  UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Homelink" message:@"Choose the configured transmitter button." preferredStyle:UIAlertControllerStyleActionSheet];
-  for (int index = 0; index < 3; index++) { [sheet addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"Button %d", index + 1] style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandDoHomelink:index]; }]]; }
+  BOOL profiles = [[ovmsAppDelegate myRef] supportsVehicleCapability:OVMSVehicleCapabilityDriveProfiles];
+  UIAlertController *sheet = [UIAlertController alertControllerWithTitle:profiles ? @"Drive profiles" : @"Homelink" message:profiles ? @"Choose the Renault Twizy drive profile." : @"Choose the configured transmitter button." preferredStyle:UIAlertControllerStyleActionSheet];
+  if (profiles) [sheet addAction:[UIAlertAction actionWithTitle:@"Default profile" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandDoDriveProfile:-1]; }]];
+  for (int index = 0; index < 3; index++) { [sheet addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:profiles ? @"Profile %d" : @"Button %d", index + 1] style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { if (profiles) [[ovmsAppDelegate myRef] commandDoDriveProfile:index]; else [[ovmsAppDelegate myRef] commandDoHomelink:index]; }]]; }
   [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]]; [self presentViewController:sheet animated:YES completion:nil];
   }
 

@@ -50,6 +50,8 @@
 @property (strong, nonatomic) UILabel *modernSecurityState;
 @property (strong, nonatomic) UILabel *modernVehicleState;
 @property (strong, nonatomic) UILabel *modernTPMSState;
+@property (strong, nonatomic) UIScrollView *modernRootScroll;
+@property (copy, nonatomic) NSString *modernCapabilityType;
 @property (assign) BOOL screenshotScenarioHandled;
 
 - (IBAction)WakeupButton:(id)sender;

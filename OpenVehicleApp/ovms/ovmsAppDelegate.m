@@ -1477,6 +1477,29 @@ else
   return (command_delegate==nil);
 }
 
+- (BOOL)supportsVehicleCapability:(OVMSVehicleCapability)capability
+{
+  NSString *type = self.car_type ?: @"";
+  switch (capability)
+    {
+    case OVMSVehicleCapabilityLock:
+      return ![type isEqualToString:@"EN"] && ![type isEqualToString:@"NRJK"];
+    case OVMSVehicleCapabilityValet:
+      return ![type isEqualToString:@"SQ"];
+    case OVMSVehicleCapabilityHomelink:
+      return ![type isEqualToString:@"RT"];
+    case OVMSVehicleCapabilityDriveProfiles:
+      return [type isEqualToString:@"RT"];
+    case OVMSVehicleCapabilityClimate:
+      return [@[@"NL",@"SE",@"SQ",@"VWUP",@"VWUP.T26",@"RZ",@"RZ2",@"VWEG"] containsObject:type] || [type hasPrefix:@"VA"] || [type hasPrefix:@"VB"] || [type hasPrefix:@"OAE"];
+    case OVMSVehicleCapabilityCharging:
+      return ![type isEqualToString:@"SQ"];
+    case OVMSVehicleCapabilityTPMS:
+      return ![@[@"RT",@"EN",@"NRJK"] containsObject:type];
+    }
+  return NO;
+}
+
 - (void)commandRegister:(NSString*)command callback:(id)cb
   {
   if (command_delegate != nil) return; // Cancel any pending delegate
@@ -1780,6 +1803,12 @@ else
   {
   [JHNotificationManager notificationWithMessage:@"Issuing Homelink Command..."];
   [self commandIssue:[NSString stringWithFormat:@"24,%d",button]];
+  }
+
+- (void)commandDoDriveProfile:(NSInteger)profile
+  {
+  [JHNotificationManager notificationWithMessage:profile < 0 ? @"Restoring default drive profile..." : [NSString stringWithFormat:@"Selecting drive profile %ld...",(long)profile+1]];
+  [self commandIssue:profile < 0 ? @"24" : [NSString stringWithFormat:@"24,%ld",(long)profile]];
   }
 
 /**

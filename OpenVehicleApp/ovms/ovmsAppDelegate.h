@@ -26,6 +26,16 @@
 @class GCDAsyncSocket;
 @class Reachability;
 
+typedef NS_ENUM(NSInteger, OVMSVehicleCapability) {
+  OVMSVehicleCapabilityLock,
+  OVMSVehicleCapabilityValet,
+  OVMSVehicleCapabilityHomelink,
+  OVMSVehicleCapabilityDriveProfiles,
+  OVMSVehicleCapabilityClimate,
+  OVMSVehicleCapabilityCharging,
+  OVMSVehicleCapabilityTPMS
+};
+
 @protocol ovmsUpdateDelegate
 @optional
 -(void) update;
@@ -304,6 +314,7 @@
 - (NSString*)convertSpeedUnits:(int)speed;
 - (NSString*)convertTemperatureUnits:(int)temp;
 - (NSString*)convertPressureUnits:(float)pressure;
+- (BOOL)supportsVehicleCapability:(OVMSVehicleCapability)capability;
 
 - (void)registerForUpdate:(id)target;
 - (void)deregisterFromUpdate:(id)target;
@@ -344,5 +355,6 @@
 - (void)commandDoUSSD:(NSString*)ussd;
 - (void)commandDoRequestGPRSData;
 - (void)commandDoHomelink:(int)button;
+- (void)commandDoDriveProfile:(NSInteger)profile;
 
 @end
