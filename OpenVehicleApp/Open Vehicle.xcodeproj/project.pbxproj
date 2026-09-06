@@ -79,6 +79,7 @@
 		4D10FCF3147BC9AA0092FAF9 /* GCDAsyncSocket.m in Sources */ = {isa = PBXBuildFile; fileRef = 4D10FCF2147BC9AA0092FAF9 /* GCDAsyncSocket.m */; };
 		4D10FCF5147BCA0C0092FAF9 /* CFNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D10FCF4147BCA0B0092FAF9 /* CFNetwork.framework */; };
 		4D10FCF7147BCACD0092FAF9 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D10FCF6147BCACD0092FAF9 /* Security.framework */; };
+		C0D300012B00000100000001 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D300022B00000100000002 /* UserNotifications.framework */; };
 		4D16EF32148747EC004A80AE /* JHNotificationManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 4D16EF31148747EC004A80AE /* JHNotificationManager.m */; };
 		4D16EF3514874AE7004A80AE /* notification_background.png in Resources */ = {isa = PBXBuildFile; fileRef = 4D16EF3414874AE7004A80AE /* notification_background.png */; };
 		4D244D52235DDE1A005E27B6 /* car_leaf_deepblue.png in Resources */ = {isa = PBXBuildFile; fileRef = 4D244D28235DDE17005E27B6 /* car_leaf_deepblue.png */; };
@@ -642,6 +643,7 @@
 		4D10FCF2147BC9AA0092FAF9 /* GCDAsyncSocket.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GCDAsyncSocket.m; sourceTree = "<group>"; };
 		4D10FCF4147BCA0B0092FAF9 /* CFNetwork.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CFNetwork.framework; path = System/Library/Frameworks/CFNetwork.framework; sourceTree = SDKROOT; };
 		4D10FCF6147BCACD0092FAF9 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		C0D300022B00000100000002 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		4D16EF30148747EC004A80AE /* JHNotificationManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JHNotificationManager.h; sourceTree = "<group>"; };
 		4D16EF31148747EC004A80AE /* JHNotificationManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = JHNotificationManager.m; sourceTree = "<group>"; };
 		4D16EF3414874AE7004A80AE /* notification_background.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = notification_background.png; sourceTree = "<group>"; };
@@ -1244,6 +1246,7 @@
 				4DE26E60147E7E3000E3161D /* CoreData.framework in Frameworks */,
 				4D90410B147C787F00D9C8E1 /* CoreLocation.framework in Frameworks */,
 				4D10FCF7147BCACD0092FAF9 /* Security.framework in Frameworks */,
+				C0D300012B00000100000001 /* UserNotifications.framework in Frameworks */,
 				4D10FCF5147BCA0C0092FAF9 /* CFNetwork.framework in Frameworks */,
 				4D91CF691473FE0900CBA435 /* MapKit.framework in Frameworks */,
 				4D5AE36914733757002F5F52 /* UIKit.framework in Frameworks */,
@@ -1287,6 +1290,7 @@
 				4DE26E5F147E7E3000E3161D /* CoreData.framework */,
 				4D90410A147C787F00D9C8E1 /* CoreLocation.framework */,
 				4D10FCF6147BCACD0092FAF9 /* Security.framework */,
+				C0D300022B00000100000002 /* UserNotifications.framework */,
 				4D10FCF4147BCA0B0092FAF9 /* CFNetwork.framework */,
 				4D91CF681473FE0900CBA435 /* MapKit.framework */,
 				4D5AE36814733757002F5F52 /* UIKit.framework */,
