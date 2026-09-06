@@ -1488,6 +1488,20 @@ else
 
 - (void)commandIssue:(NSString*)command
   {
+  if (asyncSocket == nil || ![asyncSocket isConnected])
+    {
+    command_delegate = nil;
+    [JHNotificationManager notificationWithMessage:@"Command not sent: vehicle server is offline"];
+    return;
+    }
+
+  [command_timeout invalidate];
+  pending_command = command;
+  command_timeout = [NSTimer scheduledTimerWithTimeInterval:30.0
+                                                     target:self
+                                                   selector:@selector(commandTimedOut:)
+                                                   userInfo:nil
+                                                    repeats:NO];
   char buf[1024];
   char output[1024];
   NSString* cmd = [NSString stringWithFormat:@"MP-0 C%@",command];
@@ -1501,9 +1515,27 @@ else
   [self didStartNetworking];
   }
 
+- (void)commandTimedOut:(NSTimer *)timer
+  {
+  if (timer != command_timeout) return;
+  command_timeout = nil;
+  NSString *command = pending_command;
+  pending_command = nil;
+  command_delegate = nil;
+  [self didStopNetworking];
+  NSString *detail = command.length > 0 ? [NSString stringWithFormat:@" (%@)", command] : @"";
+  [JHNotificationManager notificationWithMessage:[NSString stringWithFormat:@"Vehicle did not acknowledge the command%@", detail]];
+  }
+
 - (void)commandResponse:(NSString*)response
   {
   NSArray *result = [response componentsSeparatedByString:@","];
+  if (command_delegate == nil)
+    {
+    [command_timeout invalidate];
+    command_timeout = nil;
+    pending_command = nil;
+    }
   if ((command_delegate != nil)&&([command_delegate conformsToProtocol:@protocol(ovmsCommandDelegate)]))
     {
     [command_delegate commandResult:result];
@@ -1624,6 +1656,9 @@ else
 
 - (void)commandCancel
   {
+  [command_timeout invalidate];
+  command_timeout = nil;
+  pending_command = nil;
   command_delegate = nil;
   [self didStopNetworking];
   }

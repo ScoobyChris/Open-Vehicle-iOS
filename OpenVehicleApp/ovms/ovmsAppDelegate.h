@@ -44,6 +44,8 @@
   GCDAsyncSocket *asyncSocket;
   NSTimer *tim;
   NSTimer *timreconnect;
+  NSTimer *command_timeout;
+  NSString *pending_command;
   NSInteger networkingCount;
   
   unsigned char token[TOKEN_SIZE+1];
