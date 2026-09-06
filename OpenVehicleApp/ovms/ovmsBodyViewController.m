@@ -155,6 +155,7 @@
   NSString *secondaryTitle = [app supportsVehicleCapability:OVMSVehicleCapabilityDriveProfiles] ? @"Drive profiles" : @"Homelink";
   if ([app supportsVehicleCapability:OVMSVehicleCapabilityHomelink] || [app supportsVehicleCapability:OVMSVehicleCapabilityDriveProfiles]) [other addArrangedSubview:[self modernButton:secondaryTitle action:@selector(showHomelinkControl) color:[UIColor colorWithRed:0.72 green:0.38 blue:0.12 alpha:1]]];
   [content addArrangedSubview:other];
+  if ([app supportsVehicleCapability:OVMSVehicleCapabilityDDT4All]) [content addArrangedSubview:[self modernButton:@"Scenic DDT4all actions" action:@selector(showDDT4AllControl) color:[UIColor colorWithRed:0.48 green:0.28 blue:0.62 alpha:1]]];
   }
 
 - (void)dealloc
@@ -542,7 +543,15 @@
   UIAlertController *sheet = [UIAlertController alertControllerWithTitle:profiles ? @"Drive profiles" : @"Homelink" message:profiles ? @"Choose the Renault Twizy drive profile." : @"Choose the configured transmitter button." preferredStyle:UIAlertControllerStyleActionSheet];
   if (profiles) [sheet addAction:[UIAlertAction actionWithTitle:@"Default profile" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandDoDriveProfile:-1]; }]];
   for (int index = 0; index < 3; index++) { [sheet addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:profiles ? @"Profile %d" : @"Button %d", index + 1] style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { if (profiles) [[ovmsAppDelegate myRef] commandDoDriveProfile:index]; else [[ovmsAppDelegate myRef] commandDoHomelink:index]; }]]; }
-  [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]]; [self presentViewController:sheet animated:YES completion:nil];
+  [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]]; sheet.popoverPresentationController.sourceView=self.view; sheet.popoverPresentationController.sourceRect=CGRectMake(CGRectGetMidX(self.view.bounds),CGRectGetMidY(self.view.bounds),1,1); [self presentViewController:sheet animated:YES completion:nil];
+  }
+
+- (void)showDDT4AllControl
+  {
+  NSArray *titles=@[@"Automatic wipers off",@"Automatic wipers on",@"Switch to Wi-Fi",@"Switch to modem",@"Lock beep off",@"Lock beep on",@"Rear wiper off",@"Rear wiper on"];
+  UIAlertController *sheet=[UIAlertController alertControllerWithTitle:@"Scenic DDT4all actions" message:@"Choose a vehicle configuration command. The module must support the xsq DDT4all interface." preferredStyle:UIAlertControllerStyleActionSheet];
+  [titles enumerateObjectsUsingBlock:^(NSString *title, NSUInteger index, BOOL *stop) { [sheet addAction:[UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandDoCommand:[NSString stringWithFormat:@"xsq ddt4all %lu",(unsigned long)index+2]]; }]]; }];
+  [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]]; sheet.popoverPresentationController.sourceView=self.view; sheet.popoverPresentationController.sourceRect=CGRectMake(CGRectGetMidX(self.view.bounds),CGRectGetMidY(self.view.bounds),1,1); [self presentViewController:sheet animated:YES completion:nil];
   }
 
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender

@@ -1490,6 +1490,8 @@ else
       return ![type isEqualToString:@"RT"];
     case OVMSVehicleCapabilityDriveProfiles:
       return [type isEqualToString:@"RT"];
+    case OVMSVehicleCapabilityDDT4All:
+      return [type isEqualToString:@"SQ"];
     case OVMSVehicleCapabilityClimate:
       return [@[@"NL",@"SE",@"SQ",@"VWUP",@"VWUP.T26",@"RZ",@"RZ2",@"VWEG"] containsObject:type] || [type hasPrefix:@"VA"] || [type hasPrefix:@"VB"] || [type hasPrefix:@"OAE"];
     case OVMSVehicleCapabilityCharging:

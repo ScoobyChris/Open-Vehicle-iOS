@@ -60,5 +60,6 @@
 - (void)showValetControl;
 - (void)showWakeConfirmation;
 - (void)showHomelinkControl;
+- (void)showDDT4AllControl;
 
 @end

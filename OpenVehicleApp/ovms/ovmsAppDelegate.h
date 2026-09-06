@@ -31,6 +31,7 @@ typedef NS_ENUM(NSInteger, OVMSVehicleCapability) {
   OVMSVehicleCapabilityValet,
   OVMSVehicleCapabilityHomelink,
   OVMSVehicleCapabilityDriveProfiles,
+  OVMSVehicleCapabilityDDT4All,
   OVMSVehicleCapabilityClimate,
   OVMSVehicleCapabilityCharging,
   OVMSVehicleCapabilityTPMS
