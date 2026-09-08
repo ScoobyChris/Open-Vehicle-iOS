@@ -1480,6 +1480,7 @@ else
 - (BOOL)supportsVehicleCapability:(OVMSVehicleCapability)capability
 {
   NSString *type = self.car_type ?: @"";
+  if (type.length == 0) return YES;
   switch (capability)
     {
     case OVMSVehicleCapabilityLock:

@@ -747,6 +747,33 @@
 
 @end
 
+@interface OVMSQuickActionsEditorViewController : UITableViewController
+@property (strong, nonatomic) NSMutableArray *actions;
+@property (strong, nonatomic) NSMutableSet *disabled;
+@property (copy, nonatomic) NSString *preferenceKey;
+@property (copy, nonatomic) void (^completion)(void);
+@end
+
+@implementation OVMSQuickActionsEditorViewController
+- (void)viewDidLoad
+{
+  [super viewDidLoad]; self.title=@"Home quick actions"; self.tableView.backgroundColor=[UIColor colorWithRed:.047 green:.071 blue:.118 alpha:1]; self.tableView.separatorColor=[UIColor colorWithWhite:1 alpha:.10];
+  self.navigationItem.leftBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"Reset" style:UIBarButtonItemStylePlain target:self action:@selector(resetActions)]; self.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)]; self.editing=YES;
+}
+- (NSString *)titleForAction:(NSString *)identifier { return @{ @"charging":@"Charging", @"climate":@"Climate", @"energy":@"Energy", @"controls":@"Controls", @"location":@"Location", @"messages":@"Messages" }[identifier] ?: identifier; }
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return self.actions.count; }
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+  UITableViewCell *cell=[tableView dequeueReusableCellWithIdentifier:@"QuickAction"]; if(!cell) cell=[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"QuickAction"];
+  NSString *identifier=self.actions[indexPath.row]; cell.textLabel.text=[self titleForAction:identifier]; cell.detailTextLabel.text=@"Tap to show or hide; drag to reorder"; cell.textLabel.textColor=UIColor.whiteColor; cell.detailTextLabel.textColor=[UIColor colorWithWhite:.65 alpha:1]; cell.backgroundColor=[UIColor colorWithRed:.086 green:.125 blue:.196 alpha:1]; cell.accessoryType=[self.disabled containsObject:identifier]?UITableViewCellAccessoryNone:UITableViewCellAccessoryCheckmark; return cell;
+}
+- (BOOL)tableView:(UITableView *)tableView canMoveRowAtIndexPath:(NSIndexPath *)indexPath { return YES; }
+- (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)source toIndexPath:(NSIndexPath *)destination { NSString *item=self.actions[source.row]; [self.actions removeObjectAtIndex:source.row]; [self.actions insertObject:item atIndex:destination.row]; }
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath { NSString *item=self.actions[indexPath.row]; if([self.disabled containsObject:item]) [self.disabled removeObject:item]; else [self.disabled addObject:item]; [tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic]; }
+- (void)resetActions { self.actions=[@[@"charging",@"climate",@"energy",@"controls",@"location",@"messages"] mutableCopy]; [self.disabled removeAllObjects]; [self.tableView reloadData]; }
+- (void)done { NSUserDefaults *defaults=[NSUserDefaults standardUserDefaults]; [defaults setObject:self.actions forKey:[self.preferenceKey stringByAppendingString:@".order"]]; [defaults setObject:self.disabled.allObjects forKey:[self.preferenceKey stringByAppendingString:@".disabled"]]; if(self.completion) self.completion(); [self dismissViewControllerAnimated:YES completion:nil]; }
+@end
+
 @interface ovmsStatusViewController ()
 
 @property (strong, nonatomic) UIScrollView *modernScrollView;
@@ -759,6 +786,7 @@
 @property (strong, nonatomic) UILabel *modernIdealRangeLabel;
 @property (strong, nonatomic) UILabel *modernEstimatedRangeLabel;
 @property (strong, nonatomic) UILabel *modernParkingLabel;
+@property (copy, nonatomic) NSString *modernCapabilityType;
 @property (assign, nonatomic) BOOL screenshotScenarioHandled;
 
 @end
@@ -889,6 +917,7 @@
   [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
   [button setTitle:@"Charging" forState:UIControlStateNormal];
   [button addTarget:self action:@selector(openCharging) forControlEvents:UIControlEventTouchUpInside];
+  button.enabled=[[ovmsAppDelegate myRef] supportsVehicleCapability:OVMSVehicleCapabilityCharging]; button.alpha=button.enabled?1.0:.4;
   [button.heightAnchor constraintEqualToConstant:52.0].active = YES;
   return button;
 }
@@ -929,6 +958,7 @@
   [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
   [button setTitle:@"Climate" forState:UIControlStateNormal];
   [button addTarget:self action:@selector(openClimate) forControlEvents:UIControlEventTouchUpInside];
+  button.enabled=[[ovmsAppDelegate myRef] supportsVehicleCapability:OVMSVehicleCapabilityClimate]; button.alpha=button.enabled?1.0:.4;
   [button.heightAnchor constraintEqualToConstant:52.0].active = YES;
   return button;
 }
@@ -949,8 +979,26 @@
   self.tabBarController.selectedIndex = sender.tag;
 }
 
+- (NSString *)quickActionsPreferenceKey { return [NSString stringWithFormat:@"homeQuickActions.%@",[ovmsAppDelegate myRef].sel_car?:@"vehicle"]; }
+- (NSArray *)quickActionOrder
+{
+  NSArray *defaults=@[@"charging",@"climate",@"energy",@"controls",@"location",@"messages"]; NSArray *saved=[[NSUserDefaults standardUserDefaults] arrayForKey:[[self quickActionsPreferenceKey] stringByAppendingString:@".order"]];
+  if(saved.count!=defaults.count || ![[NSSet setWithArray:saved] isEqualToSet:[NSSet setWithArray:defaults]]) return defaults; return saved;
+}
+- (UIButton *)quickActionButton:(NSString *)identifier
+{
+  if([identifier isEqualToString:@"charging"]) return [self modernChargingButton]; if([identifier isEqualToString:@"climate"]) return [self modernClimateButton]; if([identifier isEqualToString:@"energy"]) return [self modernEnergyButton];
+  NSDictionary *tabs=@{@"controls":@1,@"location":@2,@"messages":@3}; return [self modernNavigationButton:[identifier capitalizedString] tabIndex:[tabs[identifier] integerValue]];
+}
+- (void)showQuickActionsEditor
+{
+  OVMSQuickActionsEditorViewController *editor=[[OVMSQuickActionsEditorViewController alloc] initWithStyle:UITableViewStyleGrouped]; editor.preferenceKey=[self quickActionsPreferenceKey]; editor.actions=[[self quickActionOrder] mutableCopy]; editor.disabled=[NSMutableSet setWithArray:[[NSUserDefaults standardUserDefaults] arrayForKey:[[self quickActionsPreferenceKey] stringByAppendingString:@".disabled"]]?:@[]]; __weak typeof(self) weakSelf=self; editor.completion=^{[weakSelf setupModernHome];}; UINavigationController *navigation=[[UINavigationController alloc] initWithRootViewController:editor]; navigation.modalPresentationStyle=UIModalPresentationFullScreen; [self presentViewController:navigation animated:YES completion:nil];
+}
+
 - (void)setupModernHome
 {
+  [self.modernScrollView removeFromSuperview];
+  self.modernCapabilityType=[ovmsAppDelegate myRef].car_type?:@"";
   for (UIView *subview in [self.view.subviews copy])
     subview.hidden = YES;
 
@@ -1031,23 +1079,9 @@
   self.modernParkingLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   [self.modernContentStack addArrangedSubview:[self modernCardWithTitle:@"CURRENT STATE" content:self.modernParkingLabel]];
 
-  UIStackView *vehicleActions = [[UIStackView alloc] init];
-  vehicleActions.axis = UILayoutConstraintAxisHorizontal;
-  vehicleActions.distribution = UIStackViewDistributionFillEqually;
-  vehicleActions.spacing = 12.0;
-  [vehicleActions addArrangedSubview:[self modernChargingButton]];
-  [vehicleActions addArrangedSubview:[self modernClimateButton]];
-  [vehicleActions addArrangedSubview:[self modernEnergyButton]];
-  [self.modernContentStack addArrangedSubview:vehicleActions];
-
-  UIStackView *quickActions = [[UIStackView alloc] init];
-  quickActions.axis = UILayoutConstraintAxisHorizontal;
-  quickActions.distribution = UIStackViewDistributionFillEqually;
-  quickActions.spacing = 10.0;
-  [quickActions addArrangedSubview:[self modernNavigationButton:@"Controls" tabIndex:1]];
-  [quickActions addArrangedSubview:[self modernNavigationButton:@"Location" tabIndex:2]];
-  [quickActions addArrangedSubview:[self modernNavigationButton:@"Messages" tabIndex:3]];
-  [self.modernContentStack addArrangedSubview:quickActions];
+  NSSet *disabled=[NSSet setWithArray:[[NSUserDefaults standardUserDefaults] arrayForKey:[[self quickActionsPreferenceKey] stringByAppendingString:@".disabled"]]?:@[]]; NSMutableArray *visible=[NSMutableArray array]; for(NSString *identifier in [self quickActionOrder]) if(![disabled containsObject:identifier]) [visible addObject:identifier];
+  for(NSUInteger offset=0;offset<visible.count;offset+=3){UIStackView *row=[[UIStackView alloc] init];row.axis=UILayoutConstraintAxisHorizontal;row.distribution=UIStackViewDistributionFillEqually;row.spacing=10;for(NSUInteger index=offset;index<MIN(offset+3,visible.count);index++)[row addArrangedSubview:[self quickActionButton:visible[index]]];[self.modernContentStack addArrangedSubview:row];}
+  UIButton *customize=[UIButton buttonWithType:UIButtonTypeSystem]; [customize setTitle:@"Customize quick actions" forState:UIControlStateNormal]; customize.titleLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline]; [customize addTarget:self action:@selector(showQuickActionsEditor) forControlEvents:UIControlEventTouchUpInside]; [customize.heightAnchor constraintEqualToConstant:44].active=YES; [self.modernContentStack addArrangedSubview:customize];
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -1056,8 +1090,9 @@
 #if DEBUG && TARGET_OS_SIMULATOR
   if (self.screenshotScenarioHandled) return;
   NSString *scenario = [[[NSProcessInfo processInfo] environment] objectForKey:@"OVMS_SCREENSHOT_SCENARIO"];
-  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"] && ![scenario isEqualToString:@"energy"] && ![scenario hasPrefix:@"battery-"]) return;
+  if (![scenario hasPrefix:@"charging"] && ![scenario hasPrefix:@"climate"] && ![scenario isEqualToString:@"energy"] && ![scenario hasPrefix:@"battery-"] && ![scenario isEqualToString:@"quick-actions"]) return;
   self.screenshotScenarioHandled = YES;
+  if ([scenario isEqualToString:@"quick-actions"]) { [self showQuickActionsEditor]; return; }
   if ([scenario isEqualToString:@"energy"]) { [self openEnergy]; return; }
   if ([scenario isEqualToString:@"battery-diagnostics"] || [scenario isEqualToString:@"battery-history-loading"]) {
     OVMSEnergyViewController *energy = [self openEnergy];
@@ -1343,6 +1378,8 @@
   m_car_range_ideal.text = [ovmsAppDelegate myRef].car_idealrange_s;
   m_car_range_estimated.text = [ovmsAppDelegate myRef].car_estimatedrange_s;
 
+  NSString *currentType=[ovmsAppDelegate myRef].car_type?:@"";
+  if (![self.modernCapabilityType isEqualToString:currentType]) [self setupModernHome];
   self.modernCarImage.image = [UIImage imageNamed:[ovmsAppDelegate myRef].sel_imagepath];
   self.modernSOCLabel.text = [NSString stringWithFormat:@"%d%%", [ovmsAppDelegate myRef].car_soc];
   self.modernSOCProgress.progress = MAX(0.0, MIN(1.0, [ovmsAppDelegate myRef].car_soc / 100.0));
