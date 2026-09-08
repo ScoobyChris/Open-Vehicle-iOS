@@ -28,6 +28,8 @@ jobs:
         run: |
           xcodebuild -version
           xcodebuild -showsdks
+          plutil -lint .github/ExportOptions.plist
+          xcodebuild -project "OpenVehicleApp/Open Vehicle.xcodeproj" -list | grep "Open Vehicle"
 
       - name: Run protocol fixture tests
         run: |
