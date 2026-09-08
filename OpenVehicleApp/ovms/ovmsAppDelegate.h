@@ -55,6 +55,7 @@ typedef NS_ENUM(NSInteger, OVMSVehicleCapability) {
   GCDAsyncSocket *asyncSocket;
   NSTimer *tim;
   NSTimer *timreconnect;
+  NSUInteger reconnect_failures;
   NSTimer *command_timeout;
   NSString *pending_command;
   NSInteger networkingCount;

@@ -38,6 +38,12 @@ jobs:
             Tests/OVMSCommandResponseTests.m \
             -o "$RUNNER_TEMP/ovms-protocol-tests"
           "$RUNNER_TEMP/ovms-protocol-tests" Tests/Fixtures/command-responses.json
+          xcrun clang -fobjc-arc -fmodules -framework Foundation \
+            -IOpenVehicleApp/ovms \
+            OpenVehicleApp/ovms/OVMSTelemetryFrame.m \
+            Tests/OVMSTelemetryFrameTests.m \
+            -o "$RUNNER_TEMP/ovms-telemetry-tests"
+          "$RUNNER_TEMP/ovms-telemetry-tests" Tests/Fixtures/telemetry-frames.json
 
       - name: Build for iOS Simulator
         working-directory: OpenVehicleApp

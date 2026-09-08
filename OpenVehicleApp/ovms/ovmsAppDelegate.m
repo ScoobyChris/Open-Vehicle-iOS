@@ -9,6 +9,7 @@
 #import <TargetConditionals.h>
 #import "ovmsAppDelegate.h"
 #import "OVMSCommandResponse.h"
+#import "OVMSTelemetryFrame.h"
 #import "GCDAsyncSocket.h"
 #import "JHNotificationManager.h"
 #import "Reachability.h"
@@ -22,6 +23,10 @@ static NSString * const OVMSNotificationActionLocation = @"OVMS_OPEN_LOCATION";
 static NSString * const OVMSNotificationActionCharging = @"OVMS_OPEN_CHARGING";
 static NSString * const OVMSNotificationActionSettings = @"OVMS_OPEN_SETTINGS";
 static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-credentials";
+
+@interface ovmsAppDelegate ()
+- (void)scheduleReconnect;
+@end
 
 @implementation ovmsAppDelegate
 
@@ -638,9 +643,10 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
     NSError *error = nil;
     if (![asyncSocket connectToHost:ovmsServer onPort:ovmsPort error:&error])
       {
-      // Croak on the error
+      NSLog(@"Unable to start OVMS connection: %@",error.localizedDescription);
+      asyncSocket=nil;
+      [self scheduleReconnect];
       return;
-      
       }
     [asyncSocket readDataToData:[GCDAsyncSocket CRLFData] withTimeout:-1 tag:0];
     
@@ -1339,11 +1345,7 @@ else
       {
       [self serverDisconnect];
       NSLog(@"Whoops, server welcome message too short: %@", response);
-      timreconnect = [NSTimer scheduledTimerWithTimeInterval: 10.0
-                                             target: self
-                                           selector: @selector(onTickReconnect:)
-                                           userInfo: nil
-                                            repeats: NO];
+      [self scheduleReconnect];
       return; // Invalid server response
       }
     NSString *stoken = [rparts objectAtIndex:2];
@@ -1353,11 +1355,7 @@ else
       {
       [self serverDisconnect];
       NSLog(@"Whoops, server had wrong token: %@", response);
-      timreconnect = [NSTimer scheduledTimerWithTimeInterval: 10.0
-                                                      target: self
-                                                    selector: @selector(onTickReconnect:)
-                                                    userInfo: nil
-                                                     repeats: NO];
+      [self scheduleReconnect];
       return;
       }
     // Check for token-replay attack
@@ -1365,11 +1363,7 @@ else
       {
       [self serverDisconnect];
       NSLog(@"Whoops, token replay attack: %@", response);
-      timreconnect = [NSTimer scheduledTimerWithTimeInterval: 10.0
-                                                      target: self
-                                                    selector: @selector(onTickReconnect:)
-                                                    userInfo: nil
-                                                     repeats: NO];
+      [self scheduleReconnect];
       return; // Server is using our token!
       }
       
@@ -1380,15 +1374,12 @@ else
       {
       [self serverDisconnect];
       NSLog(@"Whoops, server token is invalid: %@", response);
-      timreconnect = [NSTimer scheduledTimerWithTimeInterval: 10.0
-                                                      target: self
-                                                    selector: @selector(onTickReconnect:)
-                                                    userInfo: nil
-                                                     repeats: NO];
+      [self scheduleReconnect];
       return; // Invalid server digest
       }
       
     // Ok, at this point, our token is ok
+    reconnect_failures=0; [timreconnect invalidate]; timreconnect=nil;
     int keylen = (int)(strlen((const char*)token)+strlen(cstoken)+1);
     char key[keylen];
     strcpy(key,cstoken);
@@ -1439,18 +1430,17 @@ else
     char buf[[response length]*2 + 16];
     int len = base64decode((uint8_t*)[response UTF8String], (uint8_t*)buf);
     RC4_crypt(&rxCrypto, (uint8_t*)buf, (uint8_t*)buf, len);
-      if ((buf[0]=='M')&&(buf[1]=='P')&&(buf[2]=='-')&&(buf[3]=='0'))
-        {
-        NSString *cmd = [[NSString alloc] initWithCString:buf+6 encoding:NSUTF8StringEncoding];
-        [self handleCommand:buf[5] command:cmd];
-        }
+    NSData *decrypted=[NSData dataWithBytes:buf length:MAX(0,len)]; NSError *frameError=nil; OVMSTelemetryFrame *frame=[OVMSTelemetryFrame frameWithDecryptedData:decrypted error:&frameError];
+    if(frame) [self handleCommand:frame.code command:frame.payload]; else NSLog(@"Ignoring telemetry packet: %@",frameError.localizedDescription);
     [asyncSocket readDataToData:[GCDAsyncSocket CRLFData] withTimeout:-1 tag:1];
     }
 }
 
 - (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err
 {
+  asyncSocket=nil;
   [[ovmsAppDelegate myRef] serverClearState];
+  if ([UIApplication sharedApplication].applicationState != UIApplicationStateBackground) [self scheduleReconnect];
 }
 
 -(void)onTick:(NSTimer *)timer
@@ -1471,6 +1461,13 @@ else
   if (asyncSocket != nil) return; // Return if already connected
 
   [self serverConnect];
+  }
+
+- (void)scheduleReconnect
+  {
+  [timreconnect invalidate]; reconnect_failures++;
+  NSTimeInterval delay=[OVMSReconnectPolicy delayForConsecutiveFailureCount:reconnect_failures];
+  timreconnect=[NSTimer scheduledTimerWithTimeInterval:delay target:self selector:@selector(onTickReconnect:) userInfo:nil repeats:NO];
   }
 
 - (BOOL)commandIsFree
