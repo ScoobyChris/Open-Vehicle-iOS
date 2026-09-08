@@ -29,6 +29,16 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks
 
+      - name: Run protocol fixture tests
+        run: |
+          set -euo pipefail
+          xcrun clang -fobjc-arc -fmodules -framework Foundation \
+            -IOpenVehicleApp/ovms \
+            OpenVehicleApp/ovms/OVMSCommandResponse.m \
+            Tests/OVMSCommandResponseTests.m \
+            -o "$RUNNER_TEMP/ovms-protocol-tests"
+          "$RUNNER_TEMP/ovms-protocol-tests" Tests/Fixtures/command-responses.json
+
       - name: Build for iOS Simulator
         working-directory: OpenVehicleApp
         run: |

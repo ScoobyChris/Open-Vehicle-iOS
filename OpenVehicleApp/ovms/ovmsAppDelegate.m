@@ -8,6 +8,7 @@
 
 #import <TargetConditionals.h>
 #import "ovmsAppDelegate.h"
+#import "OVMSCommandResponse.h"
 #import "GCDAsyncSocket.h"
 #import "JHNotificationManager.h"
 #import "Reachability.h"
@@ -1555,7 +1556,9 @@ else
 
 - (void)commandResponse:(NSString*)response
   {
-  NSArray *result = [response componentsSeparatedByString:@","];
+  NSError *parseError=nil; OVMSCommandResponse *commandResponse=[OVMSCommandResponse responseWithWireText:response error:&parseError];
+  if (!commandResponse) { [command_timeout invalidate]; command_timeout=nil; pending_command=nil; command_delegate=nil; [self didStopNetworking]; [JHNotificationManager notificationWithMessage:parseError.localizedDescription]; return; }
+  NSArray *result = commandResponse.fields;
   if (command_delegate == nil)
     {
     [command_timeout invalidate];
@@ -1591,7 +1594,7 @@ else
             break;
           case 7:
             {
-            NSString* msgtext = [response substringFromIndex:4];
+            NSString* msgtext = commandResponse.payload;
             [self addMessage:msgtext incoming:YES];
             }
             break;
@@ -1671,7 +1674,7 @@ else
       default:
         [JHNotificationManager
          notificationWithMessage:
-         [NSString stringWithFormat:@"Error: %@",[result objectAtIndex:2]]];
+         [NSString stringWithFormat:@"Error: %@",commandResponse.payload.length?commandResponse.payload:@"Unknown response"]];
         [self didStopNetworking];
         break;
       }
