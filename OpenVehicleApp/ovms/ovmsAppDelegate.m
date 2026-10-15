@@ -26,6 +26,11 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
 
 @interface ovmsAppDelegate ()
 - (void)scheduleReconnect;
+- (void)configureSceneWindow;
+@end
+
+@interface OVMSSceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property (strong, nonatomic) UIWindow *window;
 @end
 
 @implementation ovmsAppDelegate
@@ -270,6 +275,12 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
     [[UITabBar appearance] setTintColor:[UIColor blackColor]];
     }
 
+  return YES;
+}
+
+- (void)configureSceneWindow
+{
+  [self applyAppearancePreference];
   if ([self.window.rootViewController isKindOfClass:[UITabBarController class]])
     {
     UITabBarController *tabs = (UITabBarController *)self.window.rootViewController;
@@ -294,8 +305,7 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
       tabController.selectedIndex = tabIndex;
     }
 #endif
-    
-  return YES;
+
 }
 	
 - (void)application:(UIApplication*)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData*)deviceToken
@@ -1902,5 +1912,51 @@ else
     [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[mapURL stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding]]];
 }
 
+
+@end
+
+
+@implementation OVMSSceneDelegate
+
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions
+{
+  if (![scene isKindOfClass:[UIWindowScene class]]) return;
+  ovmsAppDelegate *appDelegate = (ovmsAppDelegate *)UIApplication.sharedApplication.delegate;
+  self.window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
+  appDelegate.window = self.window;
+  NSString *storyboardName = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? @"MainStoryboard_iPad" : @"MainStoryboard_iPhone";
+  self.window.rootViewController = [[UIStoryboard storyboardWithName:storyboardName bundle:nil] instantiateInitialViewController];
+  [appDelegate configureSceneWindow];
+  [self.window makeKeyAndVisible];
+}
+
+- (void)sceneDidBecomeActive:(UIScene *)scene
+{
+  [(ovmsAppDelegate *)UIApplication.sharedApplication.delegate applicationDidBecomeActive:UIApplication.sharedApplication];
+}
+
+- (void)sceneWillResignActive:(UIScene *)scene
+{
+  [(ovmsAppDelegate *)UIApplication.sharedApplication.delegate applicationWillResignActive:UIApplication.sharedApplication];
+}
+
+- (void)sceneWillEnterForeground:(UIScene *)scene
+{
+  [(ovmsAppDelegate *)UIApplication.sharedApplication.delegate applicationWillEnterForeground:UIApplication.sharedApplication];
+}
+
+- (void)sceneDidEnterBackground:(UIScene *)scene
+{
+  [(ovmsAppDelegate *)UIApplication.sharedApplication.delegate applicationDidEnterBackground:UIApplication.sharedApplication];
+}
+
+- (void)sceneDidDisconnect:(UIScene *)scene
+{
+  ovmsAppDelegate *appDelegate = (ovmsAppDelegate *)UIApplication.sharedApplication.delegate;
+  [appDelegate serverDisconnect];
+  [appDelegate saveContext];
+  if (appDelegate.window == self.window) appDelegate.window = nil;
+  self.window = nil;
+}
 
 @end

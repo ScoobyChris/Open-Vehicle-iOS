@@ -512,7 +512,11 @@
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
   [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Vehicle PIN"; field.keyboardType = UIKeyboardTypeNumberPad; field.secureTextEntry = YES; }];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-  [alert addAction:[UIAlertAction actionWithTitle:actionTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { NSString *pin = alert.textFields.firstObject.text; if ([pin length]) handler(pin); }]];
+  [alert addAction:[UIAlertAction actionWithTitle:actionTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    // Match the legacy PIN form: the vehicle module validates the PIN, including
+    // an empty value for modules that do not require one.
+    handler(alert.textFields.firstObject.text ?: @"");
+  }]];
   [self presentViewController:alert animated:YES completion:nil];
   }
 
