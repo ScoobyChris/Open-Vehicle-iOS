@@ -303,12 +303,6 @@
 
 -(void) updateStatus
 {
-  NSString* units;
-  if ([[ovmsAppDelegate myRef].car_units isEqualToString:@"K"])
-    units = @"km";
-  else
-    units = @"m";
-  
   int chargetime = [ovmsAppDelegate myRef].car_chargeduration;
   int chargeremainingtime = [ovmsAppDelegate myRef].car_minutestofull;
   int chargekWh = [ovmsAppDelegate myRef].car_chargekwh;
