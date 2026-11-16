@@ -68,13 +68,17 @@
 }
 #endif
 
--(nullable MKOverlayRenderer *)mapView:(MKMapView *)mapView rendererForOverlay:(id <MKOverlay>)overlay
+-(MKOverlayRenderer *)mapView:(MKMapView *)mapView rendererForOverlay:(id <MKOverlay>)overlay
 {
+    if( [delegate respondsToSelector:@selector(mapView:rendererForOverlay:)] )
+    {
+        return [delegate mapView:mapView rendererForOverlay:overlay];
+    }
     if( [delegate respondsToSelector:@selector(mapView:viewForOverlay:)] )
     {
-        return [delegate mapView:mapView viewForOverlay:overlay];
+        return (MKOverlayRenderer *)[delegate mapView:mapView viewForOverlay:overlay];
     }
-    return nil;
+    return [[MKOverlayRenderer alloc] initWithOverlay:overlay];
 }
     
 - (nullable MKAnnotationView *)mapView:(MKMapView *)mapView viewForAnnotation:(id <MKAnnotation>)annotation
