@@ -93,6 +93,9 @@
   [content addArrangedSubview:[self heading:@"DIAGNOSTICS"]];
   UIButton *diagnostics=[UIButton buttonWithType:UIButtonTypeSystem]; [diagnostics setTitle:@"Open" forState:UIControlStateNormal]; [diagnostics addTarget:self action:@selector(openDiagnostics) forControlEvents:UIControlEventTouchUpInside];
   [content addArrangedSubview:[self settingRow:@"Vehicle and module" detail:@"Firmware, connectivity, signal, logs and module commands." control:diagnostics]];
+  [content addArrangedSubview:[self heading:@"PRIVACY"]];
+  UIButton *privacy=[UIButton buttonWithType:UIButtonTypeSystem]; [privacy setTitle:@"View" forState:UIControlStateNormal]; [privacy addTarget:self action:@selector(openPrivacyPolicy) forControlEvents:UIControlEventTouchUpInside];
+  [content addArrangedSubview:[self settingRow:@"Privacy policy" detail:@"How Open Vehicles handles information used by its apps and services." control:privacy]];
 }
 - (void)mapChanged:(UISwitch *)sender { [[NSUserDefaults standardUserDefaults] setBool:sender.on forKey:@"ovmsOpenChargeMap"]; }
 - (void)backgroundRefreshChanged:(UISwitch *)sender { [[NSUserDefaults standardUserDefaults] setBool:sender.on forKey:@"ovmsBackgroundRefresh"]; [[UIApplication sharedApplication] setMinimumBackgroundFetchInterval:sender.on?1800:UIApplicationBackgroundFetchIntervalNever]; }
@@ -101,6 +104,7 @@
 - (void)appearanceChanged:(UISegmentedControl *)sender { NSArray *values=@[@"system",@"light",@"dark"]; [[NSUserDefaults standardUserDefaults] setObject:values[sender.selectedSegmentIndex] forKey:@"ovmsAppearance"]; [[ovmsAppDelegate myRef] applyAppearancePreference]; }
 - (void)openNotificationSettings { [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString] options:@{} completionHandler:nil]; }
 - (void)openDiagnostics { [self.navigationController pushViewController:[[OVMSVehicleDiagnosticsViewController alloc] init] animated:YES]; }
+- (void)openPrivacyPolicy { [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://www.openvehicles.com/privacypolicy"] options:@{} completionHandler:nil]; }
 - (void)close:(id)sender { [self dismissViewControllerAnimated:YES completion:nil]; }
 @end
 

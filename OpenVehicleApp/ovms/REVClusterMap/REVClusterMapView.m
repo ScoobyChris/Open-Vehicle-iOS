@@ -68,7 +68,7 @@
 }
 #endif
 
--(MKOverlayView *)mapView:(MKMapView *)mapView rendererForOverlay:(id <MKOverlay>)overlay
+-(nullable MKOverlayRenderer *)mapView:(MKMapView *)mapView rendererForOverlay:(id <MKOverlay>)overlay
 {
     if( [delegate respondsToSelector:@selector(mapView:viewForOverlay:)] )
     {
@@ -77,7 +77,7 @@
     return nil;
 }
     
-- (MKAnnotationView *)mapView:(MKMapView *)mapView viewForAnnotation:(id <MKAnnotation>)annotation
+- (nullable MKAnnotationView *)mapView:(MKMapView *)mapView viewForAnnotation:(id <MKAnnotation>)annotation
 {
     if( [delegate respondsToSelector:@selector(mapView:viewForAnnotation:)] )
     {

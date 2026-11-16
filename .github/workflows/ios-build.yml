@@ -47,14 +47,14 @@ jobs:
             -o "$RUNNER_TEMP/ovms-telemetry-tests"
           "$RUNNER_TEMP/ovms-telemetry-tests" Tests/Fixtures/telemetry-frames.json
 
-      - name: Build for iOS Simulator
+      - name: Build App Store configuration for iOS Simulator
         working-directory: OpenVehicleApp
         run: |
           set -o pipefail
           xcodebuild \
             -project "Open Vehicle.xcodeproj" \
             -target "Open Vehicle" \
-            -configuration Debug \
+            -configuration "AppStore Release" \
             -sdk iphonesimulator \
             -destination "generic/platform=iOS Simulator" \
             CONFIGURATION_BUILD_DIR="$RUNNER_TEMP/Build" \
@@ -278,7 +278,7 @@ jobs:
           done
 
       - name: Upload simulator screenshot
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ovms-simulator-screenshots
           path: ${{ runner.temp }}/Screenshots/*.png
@@ -287,7 +287,7 @@ jobs:
 
       - name: Upload build log on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: xcodebuild-log
           path: ${{ runner.temp }}/xcodebuild.log

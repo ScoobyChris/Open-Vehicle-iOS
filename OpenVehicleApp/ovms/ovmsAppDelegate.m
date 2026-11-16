@@ -201,6 +201,7 @@ static NSString * const OVMSKeychainService = @"com.openvehicles.ovms.vehicle-cr
   
     myUUID = CFUUIDCreate(kCFAllocatorDefault);
     myUUIDString = CFUUIDCreateString(kCFAllocatorDefault, myUUID);
+    CFRelease(myUUID);
   
     apns_deviceid = (__bridge_transfer NSString*)myUUIDString;
     }

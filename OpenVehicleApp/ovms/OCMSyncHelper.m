@@ -32,7 +32,8 @@
 @implementation OCMSyncHelper
 
 - (id)initWithDelegate:(id)delegate {
-    if ([self init]) {
+    self = [super init];
+    if (self) {
         self.delegate = delegate;
         self.isProcess = NO;
         self.isSyncAction = NO;

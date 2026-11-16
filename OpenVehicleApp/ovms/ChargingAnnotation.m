@@ -15,7 +15,8 @@
 }
 
 - (id)initWithChargingLocation: (ChargingLocation*)location {
-    if ([self init]) {
+    self = [super init];
+    if (self) {
         self.uuid = location.uuid;
         self.title = location.addres_info.title;
         self.subtitle = [NSString stringWithFormat:@"Status: %@, Points: %@",

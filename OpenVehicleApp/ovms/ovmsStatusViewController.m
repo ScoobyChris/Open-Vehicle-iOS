@@ -1186,12 +1186,6 @@
 
 -(void) update
   {
-  NSString* units;
-  if ([[ovmsAppDelegate myRef].car_units isEqualToString:@"K"])
-    units = @"km";
-  else
-    units = @"m";
-  
   int connected = [ovmsAppDelegate myRef].car_connected;
   time_t lastupdated = [ovmsAppDelegate myRef].car_lastupdated;
   int seconds = (int)(time(0)-lastupdated);
