@@ -1464,7 +1464,7 @@ else
     case OVMSVehicleCapabilityLock:
       return ![type isEqualToString:@"EN"] && ![type isEqualToString:@"NRJK"];
     case OVMSVehicleCapabilityValet:
-      return ![type isEqualToString:@"SQ"];
+      return ![@[@"NL",@"SQ"] containsObject:type];
     case OVMSVehicleCapabilityHomelink:
       return ![type isEqualToString:@"RT"];
     case OVMSVehicleCapabilityDriveProfiles:

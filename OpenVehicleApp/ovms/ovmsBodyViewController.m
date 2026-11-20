@@ -497,7 +497,10 @@
   ovmsAppDelegate *app = [ovmsAppDelegate myRef];
   BOOL locked = (app.car_doors2 & 0x08) != 0;
   BOOL valet = (app.car_doors2 & 0x10) != 0;
-  self.modernSecurityState.text = [NSString stringWithFormat:@"  SECURITY\n  %@  ·  valet %@", locked ? @"Locked" : @"Unlocked", valet ? @"on" : @"off"];
+  if ([app supportsVehicleCapability:OVMSVehicleCapabilityValet])
+    self.modernSecurityState.text = [NSString stringWithFormat:@"  SECURITY\n  %@  ·  valet %@", locked ? @"Locked" : @"Unlocked", valet ? @"on" : @"off"];
+  else
+    self.modernSecurityState.text = [NSString stringWithFormat:@"  SECURITY\n  %@", locked ? @"Locked" : @"Unlocked"];
   NSMutableArray *openItems = [NSMutableArray array];
   if (app.car_doors1 & 0x01) [openItems addObject:@"driver door"];
   if (app.car_doors1 & 0x02) [openItems addObject:@"passenger door"];
@@ -522,9 +525,21 @@
 
 - (void)showLockControl
   {
-  BOOL locked = ([ovmsAppDelegate myRef].car_doors2 & 0x08) != 0;
+  ovmsAppDelegate *app = [ovmsAppDelegate myRef];
+  BOOL locked = (app.car_doors2 & 0x08) != 0;
   NSString *verb = locked ? @"Unlock" : @"Lock";
-  [self showPINControlWithTitle:[NSString stringWithFormat:@"%@ vehicle", verb] message:@"Enter the vehicle PIN to authorize this security command." actionTitle:verb handler:^(NSString *pin) { if (locked) [[ovmsAppDelegate myRef] commandDoUnlockCar:pin]; else [[ovmsAppDelegate myRef] commandDoLockCar:pin]; }];
+  void (^performCommand)(NSString *) = ^(NSString *pin) { if (locked) [app commandDoUnlockCar:pin]; else [app commandDoLockCar:pin]; };
+  if ([app.car_type isEqualToString:@"NL"])
+    {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"%@ vehicle?", verb]
+                                                                   message:locked ? @"Remotely unlock your Nissan Leaf?" : @"Remotely lock your Nissan Leaf?"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:verb style:locked ? UIAlertActionStyleDestructive : UIAlertActionStyleDefault handler:^(UIAlertAction *action) { performCommand(@""); }]];
+    [self presentViewController:alert animated:YES completion:nil];
+    }
+  else
+    [self showPINControlWithTitle:[NSString stringWithFormat:@"%@ vehicle", verb] message:@"Enter the vehicle PIN to authorize this security command." actionTitle:verb handler:performCommand];
   }
 
 - (void)showValetControl
