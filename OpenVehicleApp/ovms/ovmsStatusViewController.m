@@ -364,7 +364,13 @@
   NSString *verb = turnOn ? @"Start" : @"Stop";
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"%@ climate?", verb] message:turnOn ? @"Remote climate will start using the vehicle's configured temperature." : @"Remote climate will be switched off." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-  [alert addAction:[UIAlertAction actionWithTitle:verb style:turnOn ? UIAlertActionStyleDefault : UIAlertActionStyleDestructive handler:^(UIAlertAction *action) { [[ovmsAppDelegate myRef] commandIssue:[NSString stringWithFormat:@"26,%d", turnOn ? 1 : 0]]; }]];
+  [alert addAction:[UIAlertAction actionWithTitle:verb style:turnOn ? UIAlertActionStyleDefault : UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    ovmsAppDelegate *app=[ovmsAppDelegate myRef];
+    if ([app.car_type isEqualToString:@"NL"])
+      [app commandDoCommand:turnOn ? @"climatecontrol on" : @"climatecontrol off"];
+    else
+      [app commandIssue:[NSString stringWithFormat:@"26,%d", turnOn ? 1 : 0]];
+  }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
 - (NSString *)climateScheduleKey { return [NSString stringWithFormat:@"climateScheduleEnabled.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"]; }
@@ -653,14 +659,16 @@
   NSString *followup = self.pendingFollowupCommand;
   self.pendingAction = nil; self.pendingFollowupCommand = nil;
   [[ovmsAppDelegate myRef] commandCancel];
-  if (resultCode == 0 && followup.length) {
+  NSString *detail = result.count > 2 ? [[result subarrayWithRange:NSMakeRange(2, result.count-2)] componentsJoinedByString:@","] : @"";
+  BOOL shellError = resultCode == 0 && [detail rangeOfString:@"error:" options:NSCaseInsensitiveSearch].location != NSNotFound;
+  if (resultCode == 0 && !shellError && followup.length) {
     [self issueChargingCommand:followup action:@"Saving automatic limits" followup:nil];
     return;
   }
-  if (resultCode == 0) {
+  if (resultCode == 0 && !shellError) {
     [self setCommandControlsEnabled:YES status:[NSString stringWithFormat:@"%@ acknowledged by vehicle", action]];
   } else {
-    NSString *detail = result.count > 2 ? result[2] : @"Vehicle rejected the command";
+    if (!detail.length) detail = @"Vehicle rejected the command";
     [self setCommandControlsEnabled:YES status:[NSString stringWithFormat:@"%@ failed: %@", action, detail]];
   }
 }
@@ -692,7 +700,8 @@
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Start charging?" message:@"The vehicle will begin charging immediately when supported." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:@"Start" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-    [self issueChargingCommand:@"11" action:@"Starting charge" followup:nil];
+    NSString *command=[[ovmsAppDelegate myRef].car_type isEqualToString:@"NL"] ? @"7,charge start" : @"11";
+    [self issueChargingCommand:command action:@"Starting charge" followup:nil];
   }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
@@ -702,7 +711,8 @@
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Stop charging?" message:@"Charging will stop before the configured limit is reached." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:@"Stop" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
-    [self issueChargingCommand:@"12" action:@"Stopping charge" followup:nil];
+    NSString *command=[[ovmsAppDelegate myRef].car_type isEqualToString:@"NL"] ? @"7,charge stop" : @"12";
+    [self issueChargingCommand:command action:@"Stopping charge" followup:nil];
   }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
