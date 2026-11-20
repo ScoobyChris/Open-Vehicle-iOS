@@ -147,7 +147,7 @@
   [content addArrangedSubview:self.modernSecurityState]; [content addArrangedSubview:self.modernVehicleState]; [content addArrangedSubview:self.modernTPMSState];
   ovmsAppDelegate *app = [ovmsAppDelegate myRef];
   UIStackView *security = [[UIStackView alloc] init]; security.axis = UILayoutConstraintAxisHorizontal; security.distribution = UIStackViewDistributionFillEqually; security.spacing = 10;
-  UIButton *lock = [self modernButton:@"Lock / unlock" action:@selector(showLockControl) color:[UIColor colorWithRed:0.10 green:0.35 blue:0.66 alpha:1]]; lock.enabled = [app supportsVehicleCapability:OVMSVehicleCapabilityLock]; lock.alpha = lock.enabled ? 1.0 : 0.4; [security addArrangedSubview:lock];
+  UIButton *lock = [self modernButton:@"Lock / unlock" action:@selector(showLockControl) color:[UIColor colorWithRed:0.10 green:0.35 blue:0.66 alpha:1]]; lock.enabled = [app supportsVehicleCapability:OVMSVehicleCapabilityLock]; lock.alpha = lock.enabled ? 1.0 : 0.4; self.modernLockButton = lock; [security addArrangedSubview:lock];
   if ([app supportsVehicleCapability:OVMSVehicleCapabilityValet]) [security addArrangedSubview:[self modernButton:@"Valet mode" action:@selector(showValetControl) color:[UIColor colorWithRed:0.45 green:0.30 blue:0.70 alpha:1]]];
   [content addArrangedSubview:security];
   UIStackView *other = [[UIStackView alloc] init]; other.axis = UILayoutConstraintAxisHorizontal; other.distribution = UIStackViewDistributionFillEqually; other.spacing = 10;
@@ -501,6 +501,7 @@
     self.modernSecurityState.text = [NSString stringWithFormat:@"  SECURITY\n  %@  ·  valet %@", locked ? @"Locked" : @"Unlocked", valet ? @"on" : @"off"];
   else
     self.modernSecurityState.text = [NSString stringWithFormat:@"  SECURITY\n  %@", locked ? @"Locked" : @"Unlocked"];
+  [self.modernLockButton setTitle:locked ? @"Unlock vehicle" : @"Lock vehicle" forState:UIControlStateNormal];
   NSMutableArray *openItems = [NSMutableArray array];
   if (app.car_doors1 & 0x01) [openItems addObject:@"driver door"];
   if (app.car_doors1 & 0x02) [openItems addObject:@"passenger door"];
@@ -530,14 +531,7 @@
   NSString *verb = locked ? @"Unlock" : @"Lock";
   void (^performCommand)(NSString *) = ^(NSString *pin) { if (locked) [app commandDoUnlockCar:pin]; else [app commandDoLockCar:pin]; };
   if ([app.car_type isEqualToString:@"NL"])
-    {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"%@ vehicle?", verb]
-                                                                   message:locked ? @"Remotely unlock your Nissan Leaf?" : @"Remotely lock your Nissan Leaf?"
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:verb style:locked ? UIAlertActionStyleDestructive : UIAlertActionStyleDefault handler:^(UIAlertAction *action) { performCommand(@""); }]];
-    [self presentViewController:alert animated:YES completion:nil];
-    }
+    performCommand(@"");
   else
     [self showPINControlWithTitle:[NSString stringWithFormat:@"%@ vehicle", verb] message:@"Enter the vehicle PIN to authorize this security command." actionTitle:verb handler:performCommand];
   }

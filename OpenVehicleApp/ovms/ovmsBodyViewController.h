@@ -48,6 +48,7 @@
 @property (strong, nonatomic) IBOutlet UIButton *m_wakeup_button;
 @property (strong, nonatomic) IBOutlet UIButton *m_homelink_button;
 @property (strong, nonatomic) UILabel *modernSecurityState;
+@property (strong, nonatomic) UIButton *modernLockButton;
 @property (strong, nonatomic) UILabel *modernVehicleState;
 @property (strong, nonatomic) UILabel *modernTPMSState;
 @property (strong, nonatomic) UIScrollView *modernRootScroll;
