@@ -343,9 +343,12 @@ typedef NS_ENUM(NSInteger, OVMSVehicleCapability) {
 - (void)commandDoSetParameter:(int)param value:(NSString*)value;
 - (void)commandDoReboot;
 - (void)commandDoCommand:(NSString*)command;
+- (NSString*)commandForStartCharge;
+- (NSString*)commandForStopCharge;
 - (void)commandDoSetChargeMode:(int)mode;
 - (void)commandDoStartCharge;
 - (void)commandDoStopCharge;
+- (void)commandDoSetClimate:(BOOL)enabled;
 - (void)commandDoSetChargeCurrent:(int)current;
 - (void)commandDoSetChargeModecurrent:(int)mode current:(int)current;
 - (void)commandDoWakeupCar;

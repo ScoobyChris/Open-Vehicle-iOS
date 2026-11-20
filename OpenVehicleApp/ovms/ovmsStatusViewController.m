@@ -366,10 +366,7 @@
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:verb style:turnOn ? UIAlertActionStyleDefault : UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
     ovmsAppDelegate *app=[ovmsAppDelegate myRef];
-    if ([app.car_type isEqualToString:@"NL"])
-      [app commandDoCommand:turnOn ? @"climatecontrol on" : @"climatecontrol off"];
-    else
-      [app commandIssue:[NSString stringWithFormat:@"26,%d", turnOn ? 1 : 0]];
+    [app commandDoSetClimate:turnOn];
   }]];
   [self presentViewController:alert animated:YES completion:nil];
 }
@@ -700,7 +697,7 @@
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Start charging?" message:@"The vehicle will begin charging immediately when supported." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:@"Start" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-    NSString *command=[[ovmsAppDelegate myRef].car_type isEqualToString:@"NL"] ? @"7,charge start" : @"11";
+    NSString *command=[[ovmsAppDelegate myRef] commandForStartCharge];
     [self issueChargingCommand:command action:@"Starting charge" followup:nil];
   }]];
   [self presentViewController:alert animated:YES completion:nil];
@@ -711,7 +708,7 @@
   UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Stop charging?" message:@"Charging will stop before the configured limit is reached." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
   [alert addAction:[UIAlertAction actionWithTitle:@"Stop" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
-    NSString *command=[[ovmsAppDelegate myRef].car_type isEqualToString:@"NL"] ? @"7,charge stop" : @"12";
+    NSString *command=[[ovmsAppDelegate myRef] commandForStopCharge];
     [self issueChargingCommand:command action:@"Stopping charge" followup:nil];
   }]];
   [self presentViewController:alert animated:YES completion:nil];

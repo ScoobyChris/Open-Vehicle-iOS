@@ -1,0 +1,6 @@
+[
+  { "firmware": "3.3.004", "shell": true, "start": "7,charge start", "stop": "7,charge stop", "climateOn": "7,climatecontrol on", "climateOff": "7,climatecontrol off" },
+  { "firmware": "OVMS.V3 3.2.017", "shell": true, "start": "7,charge start", "stop": "7,charge stop", "climateOn": "7,climatecontrol on", "climateOff": "7,climatecontrol off" },
+  { "firmware": "2.8.6", "shell": false, "start": "11", "stop": "12", "climateOn": "26,1", "climateOff": "26,0" },
+  { "firmware": "", "shell": false, "start": "11", "stop": "12", "climateOn": "26,1", "climateOff": "26,0" }
+]

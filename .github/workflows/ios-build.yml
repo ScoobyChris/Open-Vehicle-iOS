@@ -42,6 +42,12 @@ jobs:
           "$RUNNER_TEMP/ovms-protocol-tests" Tests/Fixtures/command-responses.json
           xcrun clang -fobjc-arc -fmodules -framework Foundation \
             -IOpenVehicleApp/ovms \
+            OpenVehicleApp/ovms/OVMSVehicleCommandRouter.m \
+            Tests/OVMSVehicleCommandRouterTests.m \
+            -o "$RUNNER_TEMP/ovms-command-routing-tests"
+          "$RUNNER_TEMP/ovms-command-routing-tests" Tests/Fixtures/command-routing.json
+          xcrun clang -fobjc-arc -fmodules -framework Foundation \
+            -IOpenVehicleApp/ovms \
             OpenVehicleApp/ovms/OVMSTelemetryFrame.m \
             Tests/OVMSTelemetryFrameTests.m \
             -o "$RUNNER_TEMP/ovms-telemetry-tests"

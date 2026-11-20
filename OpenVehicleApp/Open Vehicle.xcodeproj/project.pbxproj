@@ -230,6 +230,7 @@
 		4D5AE37914733758002F5F52 /* ovmsAppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 4D5AE37814733758002F5F52 /* ovmsAppDelegate.m */; };
 		F00D00030000000000000001 /* OVMSCommandResponse.m in Sources */ = {isa = PBXBuildFile; fileRef = F00D00020000000000000001 /* OVMSCommandResponse.m */; };
 		F00D00060000000000000001 /* OVMSTelemetryFrame.m in Sources */ = {isa = PBXBuildFile; fileRef = F00D00050000000000000001 /* OVMSTelemetryFrame.m */; };
+		F00D00090000000000000001 /* OVMSVehicleCommandRouter.m in Sources */ = {isa = PBXBuildFile; fileRef = F00D00080000000000000001 /* OVMSVehicleCommandRouter.m */; };
 		4D5AE37C14733758002F5F52 /* MainStoryboard_iPhone.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4D5AE37A14733758002F5F52 /* MainStoryboard_iPhone.storyboard */; };
 		4D5AE37F14733758002F5F52 /* MainStoryboard_iPad.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4D5AE37D14733758002F5F52 /* MainStoryboard_iPad.storyboard */; };
 		4D5AE38414733758002F5F52 /* first.png in Resources */ = {isa = PBXBuildFile; fileRef = 4D5AE38314733758002F5F52 /* first.png */; };
@@ -809,6 +810,8 @@
 		F00D00020000000000000001 /* OVMSCommandResponse.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OVMSCommandResponse.m; sourceTree = "<group>"; };
 		F00D00040000000000000001 /* OVMSTelemetryFrame.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OVMSTelemetryFrame.h; sourceTree = "<group>"; };
 		F00D00050000000000000001 /* OVMSTelemetryFrame.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OVMSTelemetryFrame.m; sourceTree = "<group>"; };
+		F00D00070000000000000001 /* OVMSVehicleCommandRouter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OVMSVehicleCommandRouter.h; sourceTree = "<group>"; };
+		F00D00080000000000000001 /* OVMSVehicleCommandRouter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OVMSVehicleCommandRouter.m; sourceTree = "<group>"; };
 		4D5AE38314733758002F5F52 /* first.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = first.png; sourceTree = "<group>"; };
 		4D5AE38514733758002F5F52 /* first@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "first@2x.png"; sourceTree = "<group>"; };
 		4D5AE38A14733758002F5F52 /* second.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = second.png; sourceTree = "<group>"; };
@@ -1320,6 +1323,8 @@
 				F00D00020000000000000001 /* OVMSCommandResponse.m */,
 				F00D00040000000000000001 /* OVMSTelemetryFrame.h */,
 				F00D00050000000000000001 /* OVMSTelemetryFrame.m */,
+				F00D00070000000000000001 /* OVMSVehicleCommandRouter.h */,
+				F00D00080000000000000001 /* OVMSVehicleCommandRouter.m */,
 				4D5AE37A14733758002F5F52 /* MainStoryboard_iPhone.storyboard */,
 				4D5AE37D14733758002F5F52 /* MainStoryboard_iPad.storyboard */,
 				4DB9426B220490FB002972F4 /* Support Views */,
@@ -2695,6 +2700,7 @@
 				4D5AE37914733758002F5F52 /* ovmsAppDelegate.m in Sources */,
 				F00D00030000000000000001 /* OVMSCommandResponse.m in Sources */,
 				F00D00060000000000000001 /* OVMSTelemetryFrame.m in Sources */,
+				F00D00090000000000000001 /* OVMSVehicleCommandRouter.m in Sources */,
 				4DCCF1B221FAD4FC002B4FC0 /* YYTextParser.m in Sources */,
 				4D91CEF71473EBFA00CBA435 /* ovmsLocationViewController.m in Sources */,
 				4DCCF1B021FAD4FC002B4FC0 /* YYLabel.m in Sources */,

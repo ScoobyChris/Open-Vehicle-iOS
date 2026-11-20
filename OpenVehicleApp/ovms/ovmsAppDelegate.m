@@ -9,6 +9,7 @@
 #import <TargetConditionals.h>
 #import "ovmsAppDelegate.h"
 #import "OVMSCommandResponse.h"
+#import "OVMSVehicleCommandRouter.h"
 #import "OVMSTelemetryFrame.h"
 #import "GCDAsyncSocket.h"
 #import "JHNotificationManager.h"
@@ -1705,10 +1706,20 @@ else
   [self commandIssue:[NSString stringWithFormat:@"10,%d",mode]];
   }
 
+- (NSString*)commandForStartCharge
+  {
+  return [OVMSVehicleCommandRouter startChargeCommandForFirmware:self.car_firmware];
+  }
+
+- (NSString*)commandForStopCharge
+  {
+  return [OVMSVehicleCommandRouter stopChargeCommandForFirmware:self.car_firmware];
+  }
+
 - (void)commandDoStartCharge
   {
   [JHNotificationManager notificationWithMessage:@"Starting Charge..."];
-  [self commandIssue:@"11"];
+  [self commandIssue:[self commandForStartCharge]];
   self.car_linevoltage = 0;
   self.car_chargecurrent = 0;
   self.car_chargestate = @"starting";
@@ -1719,12 +1730,18 @@ else
 - (void)commandDoStopCharge
   {
   [JHNotificationManager notificationWithMessage:@"Stopping Charge..."];
-  [self commandIssue:@"12"];
+  [self commandIssue:[self commandForStopCharge]];
   self.car_linevoltage = 0;
   self.car_chargecurrent = 0;
   self.car_chargestate = @"stopping";
   self.car_chargestateN = 0x115;
   [self notifyUpdates];
+  }
+
+- (void)commandDoSetClimate:(BOOL)enabled
+  {
+  [JHNotificationManager notificationWithMessage:enabled ? @"Starting Climate..." : @"Stopping Climate..."];
+  [self commandIssue:[OVMSVehicleCommandRouter climateCommandForEnabled:enabled firmware:self.car_firmware]];
   }
 
 - (void)commandDoSetChargeCurrent:(int)current
