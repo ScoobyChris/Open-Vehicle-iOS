@@ -171,7 +171,8 @@
 
   self.m_car_location = nil;
   if (m_groupcar_locations == nil) m_groupcar_locations = [[NSMutableDictionary alloc] init];
-  self.isAutotrack = YES;
+  NSString *autotrackKey = [NSString stringWithFormat:@"mapAutotrack.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"];
+  self.isAutotrack = [[NSUserDefaults standardUserDefaults] boolForKey:autotrackKey];
 
   [[ovmsAppDelegate myRef] registerForUpdate:self];
     
@@ -1237,6 +1238,8 @@
     switch (index) {
         case 0: {
             self.isAutotrack = !self.isAutotrack;
+            NSString *autotrackKey = [NSString stringWithFormat:@"mapAutotrack.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"];
+            [[NSUserDefaults standardUserDefaults] setBool:self.isAutotrack forKey:autotrackKey];
             if (self.isAutotrack && m_car_location) {
                 [myMapView setCenterCoordinate:m_car_location.coordinate animated:YES];
                 if (self.m_car_location) [self loadData:[ovmsAppDelegate myRef].car_location];

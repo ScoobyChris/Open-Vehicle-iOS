@@ -81,8 +81,16 @@
     ]];
 }
 
+- (NSString *)autotrackPreferenceKey {
+    return [NSString stringWithFormat:@"mapAutotrack.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"];
+}
+
+- (void)setAutotrackEnabled:(BOOL)enabled {
+    self.isAutotrack = enabled;
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:[self autotrackPreferenceKey]];
+}
+
 - (void)recenterVehicle {
-    self.isAutotrack = YES;
     if (self.m_car_location) [self.myMapView setCenterCoordinate:self.m_car_location.coordinate animated:YES];
 }
 
@@ -99,7 +107,7 @@
 
     self.m_car_location = nil;
     if (m_groupcar_locations == nil) m_groupcar_locations = [[NSMutableDictionary alloc] init];
-    self.isAutotrack = YES;
+    self.isAutotrack = [[NSUserDefaults standardUserDefaults] boolForKey:[self autotrackPreferenceKey]];
 
     [[ovmsAppDelegate myRef] registerForUpdate:self];
     
@@ -169,7 +177,7 @@
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Map options" message:@"Choose what is shown around the vehicle." preferredStyle:UIAlertControllerStyleActionSheet];
     NSString *tracking = self.isAutotrack ? @"Disable automatic tracking" : @"Enable automatic tracking";
     [sheet addAction:[UIAlertAction actionWithTitle:tracking style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        self.isAutotrack = !self.isAutotrack;
+        [self setAutotrackEnabled:!self.isAutotrack];
         if (self.isAutotrack) [self recenterVehicle];
     }]];
     NSString *filter = self.isFiltredChargingStation ? @"Show all connector types" : @"Filter compatible connectors";
@@ -240,7 +248,7 @@
 - (void)popoverView:(PopoverView *)popoverView didSelectItemAtIndex:(NSInteger)index {
     switch (index) {
         case 0: {
-            self.isAutotrack = !self.isAutotrack;
+            [self setAutotrackEnabled:!self.isAutotrack];
             if (self.isAutotrack && m_car_location) {
                 [myMapView setCenterCoordinate:m_car_location.coordinate animated:YES];
                 if (self.m_car_location) [self loadData:[ovmsAppDelegate myRef].car_location];
