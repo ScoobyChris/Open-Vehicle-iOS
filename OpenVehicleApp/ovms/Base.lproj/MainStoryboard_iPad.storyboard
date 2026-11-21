@@ -1505,9 +1505,6 @@
                     <navigationBar key="navigationBar" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" barStyle="black" id="76w-4N-u07">
                         <rect key="frame" x="0.0" y="0.0" width="712" height="56"/>
                         <autoresizingMask key="autoresizingMask"/>
-                        <connections>
-                            <outlet property="delegate" destination="h2F-ed-J2N" id="vC3-KQ-e39"/>
-                        </connections>
                     </navigationBar>
                     <nil name="viewControllers"/>
                     <connections>

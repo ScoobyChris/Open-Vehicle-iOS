@@ -31,6 +31,24 @@ jobs:
           plutil -lint .github/ExportOptions.plist
           xcodebuild -project "OpenVehicleApp/Open Vehicle.xcodeproj" -list | grep "Open Vehicle"
 
+      - name: Validate storyboard navigation ownership
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          invalid = []
+          for storyboard in Path("OpenVehicleApp").rglob("*.storyboard"):
+              root = ET.parse(storyboard).getroot()
+              for navigation_bar in root.iter("navigationBar"):
+                  for outlet in navigation_bar.findall("./connections/outlet"):
+                      if outlet.get("property") == "delegate":
+                          invalid.append(f"{storyboard}: UINavigationBar delegate outlet {outlet.get('id')}")
+
+          if invalid:
+              raise SystemExit("\n".join(invalid))
+          PY
+
       - name: Run protocol fixture tests
         run: |
           set -euo pipefail

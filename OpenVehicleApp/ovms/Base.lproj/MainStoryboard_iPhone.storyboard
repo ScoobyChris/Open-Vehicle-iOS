@@ -1571,9 +1571,6 @@
                     <navigationBar key="navigationBar" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" barStyle="black" id="dIp-hY-kyL">
                         <rect key="frame" x="0.0" y="0.0" width="320" height="56"/>
                         <autoresizingMask key="autoresizingMask"/>
-                        <connections>
-                            <outlet property="delegate" destination="ywl-8V-elC" id="f85-J1-Y8Q"/>
-                        </connections>
                     </navigationBar>
                     <nil name="viewControllers"/>
                     <connections>
