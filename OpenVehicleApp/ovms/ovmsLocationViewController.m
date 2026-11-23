@@ -85,6 +85,10 @@
     return [NSString stringWithFormat:@"mapAutotrack.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"];
 }
 
+- (NSString *)vehicleTrailVisibilityPreferenceKey {
+    return [NSString stringWithFormat:@"mapVehicleTrailVisible.%@", [ovmsAppDelegate myRef].sel_car ?: @"vehicle"];
+}
+
 - (void)setAutotrackEnabled:(BOOL)enabled {
     self.isAutotrack = enabled;
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:[self autotrackPreferenceKey]];
@@ -108,6 +112,7 @@
     self.m_car_location = nil;
     if (m_groupcar_locations == nil) m_groupcar_locations = [[NSMutableDictionary alloc] init];
     self.isAutotrack = [[NSUserDefaults standardUserDefaults] boolForKey:[self autotrackPreferenceKey]];
+    self.isVehicleTrailVisible = [[NSUserDefaults standardUserDefaults] boolForKey:[self vehicleTrailVisibilityPreferenceKey]];
 
     [[ovmsAppDelegate myRef] registerForUpdate:self];
     
@@ -152,6 +157,7 @@
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [self showMapOptions]; });
     } else if ([scenario isEqualToString:@"map-history-loading"]) {
         self.screenshotScenarioHandled = YES;
+        self.isVehicleTrailVisible = YES;
         CLLocationCoordinate2D center=[ovmsAppDelegate myRef].car_location;
         if (!CLLocationCoordinate2DIsValid(center) || (center.latitude==0 && center.longitude==0)) center=CLLocationCoordinate2DMake(51.5074,-0.1278);
         [self.vehicleTrail removeAllObjects]; for(NSInteger i=0;i<18;i++) [self.vehicleTrail addObject:[NSValue valueWithMKCoordinate:CLLocationCoordinate2DMake(center.latitude-.012+i*.0007,center.longitude-.016+i*.0009+sin(i*.5)*.001)]];
@@ -195,6 +201,12 @@
     [sheet addAction:[UIAlertAction actionWithTitle:range style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         self.isUseRange = !self.isUseRange;
         if (self.m_car_location) [self loadData:[ovmsAppDelegate myRef].car_location];
+    }]];
+    NSString *trail = self.isVehicleTrailVisible ? @"Hide recent vehicle trail" : @"Show recent vehicle trail";
+    [sheet addAction:[UIAlertAction actionWithTitle:trail style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        self.isVehicleTrailVisible = !self.isVehicleTrailVisible;
+        [[NSUserDefaults standardUserDefaults] setBool:self.isVehicleTrailVisible forKey:[self vehicleTrailVisibilityPreferenceKey]];
+        [self initOverlays];
     }]];
     [sheet addAction:[UIAlertAction actionWithTitle:@"Refresh trip history" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [self refreshVehicleHistory]; }]];
     [sheet addAction:[UIAlertAction actionWithTitle:@"Clear recent vehicle trail" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
@@ -356,7 +368,7 @@
         [myMapView addOverlay:[MKCircle circleWithCenterCoordinate:[ovmsAppDelegate myRef].car_location radius:idealrange]];
         [myMapView addOverlay:[MKCircle circleWithCenterCoordinate:[ovmsAppDelegate myRef].car_location radius:estimatedrange]];
     }
-    if (self.vehicleTrail.count > 1) {
+    if (self.isVehicleTrailVisible && self.vehicleTrail.count > 1) {
         CLLocationCoordinate2D coordinates[self.vehicleTrail.count];
         for (NSUInteger index = 0; index < self.vehicleTrail.count; index++) coordinates[index] = [self.vehicleTrail[index] MKCoordinateValue];
         [myMapView addOverlay:[MKPolyline polylineWithCoordinates:coordinates count:self.vehicleTrail.count]];

@@ -26,6 +26,7 @@
 @property (strong, nonatomic) NSMutableDictionary* m_groupcar_locations;
 @property (strong, nonatomic) VehicleAnnotation *m_car_location;
 @property (assign) BOOL isAutotrack;
+@property (assign) BOOL isVehicleTrailVisible;
 @property (assign) BOOL isFiltredChargingStation;
 @property (assign) BOOL isUseRange;
 @property (assign) BOOL isLoadAll;
